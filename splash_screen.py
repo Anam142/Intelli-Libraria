@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QGraphicsDropShadowEffect
 from PyQt5.QtGui import QPixmap, QPalette, QBrush, QColor, QFont, QLinearGradient
 from PyQt5.QtCore import Qt, QTimer
 

@@ -6,11 +6,12 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont, QColor, QPalette
 
 class ClassicSplashScreen(QWidget):
-    def __init__(self):
+    def __init__(self, on_finished_callback=None):
         super().__init__()
         self.setFixedSize(600, 300)
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         self.setWindowTitle("Intelli Libraria Splash")
+        self.on_finished_callback = on_finished_callback
         self.initUI()
         self.progress = 0
         self.timer = QTimer(self)
@@ -32,7 +33,7 @@ class ClassicSplashScreen(QWidget):
         # Title label
         title = QLabel("Welcome to Intelli Libraria", self)
         title_font = QFont()
-        title_font.setPointSize(18)
+        title_font.setPointSize(40)  # Increased font size
         title_font.setBold(True)
         title.setFont(title_font)
         title.setStyleSheet("color: white;")
@@ -78,7 +79,12 @@ class ClassicSplashScreen(QWidget):
         self.progress_bar.setValue(self.progress)
         if self.progress >= 100:
             self.timer.stop()
-            QTimer.singleShot(300, self.close)  # Small delay for effect
+            QTimer.singleShot(300, self.finish)
+
+    def finish(self):
+        self.close()
+        if self.on_finished_callback:
+            self.on_finished_callback()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

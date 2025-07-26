@@ -7,6 +7,8 @@ from PyQt5.QtGui import QPixmap, QPalette, QBrush, QColor, QFont, QCursor
 from PyQt5.QtCore import Qt
 import sqlite3
 from dashboard_window import DashboardWindow
+from PyQt5.QtCore import QTimer
+from classic_splash import ClassicSplashScreen
 
 class RegistrationWindow(QWidget):
     def __init__(self, parent=None):
@@ -304,13 +306,32 @@ class LoginWindow(QWidget):
         super().resizeEvent(event)
 
     def login_clicked(self):
-        from PyQt5.QtWidgets import QMessageBox
         username = self.username_input.text().strip()
         password = self.password_input.text().strip()
+
         if not username or not password:
-            QMessageBox.warning(self, "Login Failed", "Please enter both username and password")
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Login Failed", "Username and password are required.")
             return
-        QMessageBox.information(self, "Login", "Login Successful")
+
+        try:
+            conn = sqlite3.connect('intelli_libraria.db')
+            cursor = conn.cursor()
+            # In a real app, passwords should be hashed. For this project, we use plaintext.
+            cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
+            user = cursor.fetchone()
+            conn.close()
+
+            if user:
+                self.dashboard = DashboardWindow()
+                self.dashboard.showMaximized()
+                self.close()
+            else:
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "Login Failed", "Invalid username or password.")
+        except sqlite3.Error as e:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Database Error", f"An error occurred: {e}")
 
     def signup_clicked(self):
         self.hide()
@@ -491,18 +512,19 @@ class SignupWindow(QWidget):
         if self.login_window is not None:
             self.login_window.show()
 
-if __name__ == "__main__":
+def main():
     app = QApplication(sys.argv)
-    login_window = LoginWindow()
-    splash = SplashScreen(on_finished_callback=None)
+    splash = ClassicSplashScreen()
     splash.show()
 
+    # Store login as an attribute of app to keep it alive
     def show_login():
-        # Show login window first, then close splash
-        login_window.showMaximized()
         splash.close()
+        app.login = LoginWindow()
+        app.login.showMaximized()
 
-    # Connect the splash finish to show_login
-    splash.on_finished_callback = show_login
+    QTimer.singleShot(5300, show_login)
+    sys.exit(app.exec_())
 
-    sys.exit(app.exec_()) 
+if __name__ == "__main__":
+    main() 
