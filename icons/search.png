@@ -1,0 +1,3 @@
+# This is a placeholder file for search.png
+# The actual icon should be a PNG image file
+# For now, this prevents the QPixmap null pixmap error 

@@ -1,0 +1,16 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icons/book.svg</file>
+        <file>icons/home.svg</file>
+        <file>icons/users.svg</file>
+        <file>icons/refresh-cw.svg</file>
+        <file>icons/file-text.svg</file>
+        <file>icons/dollar-sign.svg</file>
+        <file>icons/bell.svg</file>
+        <file>icons/calendar.svg</file>
+        <file>icons/message-square.svg</file>
+        <file>icons/user.svg</file>
+        <file>icons/edit.svg</file>
+        <file>icons/trash.svg</file>
+    </qresource>
+</RCC>

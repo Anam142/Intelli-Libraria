@@ -25,8 +25,8 @@ class FineManagementPage(QWidget):
         search_bar.setPlaceholderText("Search fines by user, book, or date")
         search_bar.setStyleSheet("""
             QLineEdit {
-                background: #f6f7fa;
-                border: none;
+                background: #ffffff;
+                border: 1px solid #e0e0e0;
                 border-radius: 12px;
                 padding: 16px 20px;
                 font-size: 16px;

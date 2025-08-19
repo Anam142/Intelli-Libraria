@@ -1,7 +1,10 @@
 import database
-from PyQt5.QtCore import QSize, Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QIcon
-from PyQt5.QtWidgets import QComboBox, QDialog, QFormLayout, QFrame, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (QComboBox, QDialog, QFormLayout, QFrame, QHBoxLayout, 
+                            QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, 
+                            QScrollArea, QTableWidget, QTableWidgetItem, QTextEdit, 
+                            QVBoxLayout, QWidget)
 
 
 class UserDialog(QDialog):
@@ -18,6 +21,8 @@ class UserDialog(QDialog):
         self.init_ui()
         if self.user_id:
             self.load_user_data()
+        else:
+            self.generate_user_id()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -27,6 +32,44 @@ class UserDialog(QDialog):
         heading = QLabel(f"{'Edit' if self.user_id else 'Add New'} User")
         heading.setStyleSheet("font-size: 28px; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 800; color: #232b36;")
         layout.addWidget(heading, alignment=Qt.AlignLeft)
+
+        # Create a scroll area for the form
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border: none; background: transparent;")
+        
+        # Container for the form
+        form_container = QWidget()
+        form_layout = QVBoxLayout(form_container)
+        form_layout.setContentsMargins(0, 0, 0, 0)
+        form_layout.setSpacing(18)
+
+        # User ID field (read-only)
+        user_id_container = QVBoxLayout()
+        user_id_label = QLabel("User ID")
+        user_id_label.setStyleSheet("font-size: 15px; font-weight: 600; color: #232b36;")
+        
+        self.user_id_field = QLineEdit()
+        self.user_id_field.setPlaceholderText("Enter User ID")
+        self.user_id_field.setStyleSheet("""
+            QLineEdit {
+                background: #ffffff;
+                border: 1.5px solid #e5e7eb;
+                border-radius: 10px;
+                padding: 12px 16px;
+                color: #1a1a1a;
+                font-size: 15px;
+                min-height: 40px;
+            }
+            QLineEdit:focus {
+                border: 1.5px solid #4f46e5;
+                outline: none;
+            }
+        """)
+        
+        user_id_container.addWidget(user_id_label)
+        user_id_container.addWidget(self.user_id_field)
+        form_layout.addLayout(user_id_container)
 
         # Form fields
         fields = {
@@ -40,21 +83,32 @@ class UserDialog(QDialog):
         for label_text, (placeholder, widget_type) in fields.items():
             label = QLabel(label_text)
             label.setStyleSheet("font-size: 15px; font-weight: 600; color: #232b36;")
-            layout.addWidget(label)
+            form_layout.addWidget(label)
 
             input_widget = widget_type()
             input_widget.setPlaceholderText(placeholder)
-            input_widget.setStyleSheet("background: #fff; border-radius: 10px; border: 1.5px solid #e5e7eb; padding: 12px 16px; font-size: 15px;")
+            input_widget.setStyleSheet("""
+                background: #fff;
+                border-radius: 10px;
+                border: 1.5px solid #e5e7eb;
+                padding: 12px 16px;
+                font-size: 15px;
+                min-height: 40px;
+            """)
             if isinstance(input_widget, QTextEdit):
                 input_widget.setFixedHeight(120)
-            layout.addWidget(input_widget)
+            form_layout.addWidget(input_widget)
             self.inputs[label_text] = input_widget
 
-        if self.user_id:
-            self.role_input = self.add_combo_box(layout, "Role", ["Admin", "Member"])
-            self.status_input = self.add_combo_box(layout, "Status", ["Active", "Inactive"])
+        # Role and Status combo boxes
+        self.role_input = self.add_combo_box(form_layout, "Role", ["Admin", "Librarian", "Member"])
+        self.status_input = self.add_combo_box(form_layout, "Status", ["Active", "Inactive", "Suspended"])
 
-        layout.addStretch(1)
+        form_layout.addStretch(1)
+        
+        # Set the scroll area's widget
+        scroll.setWidget(form_container)
+        layout.addWidget(scroll, 1)  # Add stretch to take remaining space
 
         # Buttons
         btn_row = QHBoxLayout()
@@ -82,10 +136,25 @@ class UserDialog(QDialog):
         layout.addWidget(combo_box)
         return combo_box
 
+    def generate_user_id(self):
+        """Generate a new user ID in the format USR-XXXXXX"""
+        import random
+        import string
+        # Generate a random 6-digit number
+        random_digits = ''.join(random.choices(string.digits, k=6))
+        user_id = f"USR-{random_digits}"
+        # Set the generated ID in the User ID field
+        if hasattr(self, 'user_id_field') and self.user_id_field:
+            self.user_id_field.setText(user_id)
+        return user_id
+
     def load_user_data(self):
         user = database.get_user_by_id(self.user_id)
         if user:
             user_id, name, email, role, status, contact, address = user
+            # Set the existing user ID
+            if hasattr(self, 'user_id_field') and self.user_id_field:
+                self.user_id_field.setText(str(user_id))
             self.inputs["Full Name"].setText(name)
             self.inputs["Email Address"].setText(email)
             self.inputs["Contact Number"].setText(contact or "")
@@ -151,6 +220,7 @@ class UserManagementPage(QWidget):
         main_layout.addWidget(self.table)
         self.load_users()
 
+
     def create_header(self):
         header_layout = QHBoxLayout()
         title = QLabel("User Management")
@@ -161,12 +231,23 @@ class UserManagementPage(QWidget):
         add_user_btn = QPushButton("Add User")
         add_user_btn.setFont(QFont("Arial", 12))
         add_user_btn.setCursor(Qt.PointingHandCursor)
+        
+        # Set button styles
         add_user_btn.setStyleSheet("""
-            background-color: #f0f0f0;
-            color: #333;
-            border: 1px solid #ccc;
-            padding: 8px 16px;
-            border-radius: 4px;
+            QPushButton {
+                background-color: #4f46e5;
+                color: white;
+                border: 1px solid #4338ca;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #4338ca;
+            }
+            QPushButton:pressed {
+                background-color: #3730a3;
+            }
         """)
         add_user_btn.clicked.connect(self.open_add_user_dialog)
         header_layout.addWidget(add_user_btn)
@@ -176,10 +257,10 @@ class UserManagementPage(QWidget):
         search_layout = QHBoxLayout()
         search_frame = QFrame()
         search_frame.setStyleSheet("""
-            QFrame { 
+            QFrame {
                 border: 1px solid #e0e0e0; 
                 border-radius: 5px; 
-                background-color: #f9f9f9; 
+                background-color: #ffffff; 
             }
         """)
         search_frame_layout = QHBoxLayout(search_frame)
@@ -199,12 +280,12 @@ class UserManagementPage(QWidget):
         table.setColumnCount(6)
         table.setHorizontalHeaderLabels(["User ID", "Full Name", "Email", "Role", "Status", "Actions"])
         # Configure table properties
-        table.setColumnWidth(0, 80)   # User ID (reduced from 100)
+        table.setColumnWidth(0, 100)  # User ID
         table.setColumnWidth(1, 200)  # Full Name
         table.setColumnWidth(2, 250)  # Email
-        table.setColumnWidth(3, 100)  # Role (reduced from 120)
-        table.setColumnWidth(4, 100)  # Status (reduced from 120)
-        table.setColumnWidth(5, 150)  # Actions
+        table.setColumnWidth(3, 100)  # Role
+        table.setColumnWidth(4, 100)  # Status
+        table.setColumnWidth(5, 200)  # Increased width for Actions column
         
         # Set row height and other table properties
         table.verticalHeader().setDefaultSectionSize(60)  # Increased row height
@@ -404,52 +485,58 @@ class UserManagementPage(QWidget):
     def create_actions_widget(self, user_id):
         widget = QWidget()
         layout = QHBoxLayout(widget)
-        layout.setContentsMargins(10, 6, 10, 6)
-        layout.setSpacing(8)
+        layout.setContentsMargins(5, 5, 5, 5)  # Reduced margins
+        layout.setSpacing(6)  # Reduced spacing between buttons
         layout.setAlignment(Qt.AlignCenter)
         
-        # Edit button with icon and hover effect
+        # Edit button with hover effect - enhanced visibility
         edit_btn = QPushButton("Edit")
         edit_btn.setCursor(Qt.PointingHandCursor)
-        edit_btn.setIcon(QIcon(":/icons/edit.svg"))
         edit_btn.setStyleSheet("""
             QPushButton {
-                color: #1d4ed8;
-                background-color: #eff6ff;
-                border: 1px solid #bfdbfe;
-                border-radius: 6px;
-                padding: 4px 12px;
+                color: #1e40af;
+                background-color: #dbeafe;
+                border: 1px solid #93c5fd;
+                border-radius: 12px;
+                padding: 6px 12px;
                 font-weight: 500;
-                font-size: 12px;
+                font-size: 13px;
+                min-width: 70px;
+                max-width: 70px;
+                margin: 0 2px;
             }
             QPushButton:hover {
-                background-color: #dbeafe;
+                background-color: #bfdbfe;
+                border-color: #60a5fa;
             }
             QPushButton:pressed {
-                background-color: #bfdbfe;
+                background-color: #93c5fd;
             }
         """)
         edit_btn.clicked.connect(lambda: self.open_edit_user_dialog(user_id))
         
-        # Delete button with icon and hover effect
+        # Delete button with hover effect - enhanced visibility
         delete_btn = QPushButton("Delete")
         delete_btn.setCursor(Qt.PointingHandCursor)
-        delete_btn.setIcon(QIcon(":/icons/trash.svg"))
         delete_btn.setStyleSheet("""
             QPushButton {
-                color: #dc2626;
-                background-color: #fef2f2;
+                color: #991b1b;
+                background-color: #fee2e2;
                 border: 1px solid #fecaca;
-                border-radius: 6px;
-                padding: 4px 12px;
+                border-radius: 12px;
+                padding: 6px 12px;
                 font-weight: 500;
-                font-size: 12px;
+                font-size: 13px;
+                min-width: 70px;
+                max-width: 70px;
+                margin: 0 2px;
             }
             QPushButton:hover {
-                background-color: #fee2e2;
+                background-color: #fecaca;
+                border-color: #fca5a5;
             }
             QPushButton:pressed {
-                background-color: #fecaca;
+                background-color: #fca5a5;
             }
         """)
         delete_btn.clicked.connect(lambda: self.delete_user(user_id))

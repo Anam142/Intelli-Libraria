@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QRadioButton, QButtonGroup, QGroupBox, QComboBox, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QSizePolicy, QDateEdit
+    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QRadioButton, QButtonGroup, QGroupBox, QComboBox, 
+    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QSizePolicy, QDateEdit, QMessageBox
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
@@ -89,7 +90,28 @@ class ReportGenerationPage(QWidget):
         btn_row = QHBoxLayout()
         btn_row.addStretch(1)
         self.generate_btn = QPushButton("Generate Report")
-        self.generate_btn.setStyleSheet("background: #1976d2; color: #fff; font-size: 15px; font-weight: bold; border-radius: 8px; padding: 8px 24px;")
+        self.generate_btn.setStyleSheet("""
+            QPushButton {
+                background: #1976d2;
+                color: #fff;
+                font-size: 15px;
+                font-weight: bold;
+                border-radius: 8px;
+                padding: 8px 24px;
+                min-width: 180px;
+            }
+            QPushButton:hover {
+                background: #1565c0;
+            }
+            QPushButton:pressed {
+                background: #0d47a1;
+            }
+            QPushButton:disabled {
+                background: #e0e0e0;
+                color: #9e9e9e;
+            }
+        """)
+        self.generate_btn.clicked.connect(self.generate_report)
         btn_row.addWidget(self.generate_btn)
         btn_row_widget = QWidget()
         btn_row_widget.setLayout(btn_row)
@@ -119,14 +141,19 @@ class ReportGenerationPage(QWidget):
                 border: 1px solid #e5e7eb;
                 font-size: 15px;
                 font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-                border-collapse: separate;
-                border-spacing: 0 8px;
+                border-collapse: collapse;
                 margin-top: 0px;
                 margin-bottom: 0px;
             }
             QTableWidget::item {
                 border-bottom: 1px solid #e5e7eb;
-                padding: 0px 0px;
+                padding: 12px 8px;
+            }
+            QTableWidget::item:first-child {
+                padding-left: 16px;
+            }
+            QTableWidget::item:last-child {
+                padding-right: 16px;
             }
             QHeaderView::section {
                 background: #f5f5f5;
@@ -156,4 +183,117 @@ class ReportGenerationPage(QWidget):
             self.table.setItem(row, 1, author_item)
             self.table.setItem(row, 2, QTableWidgetItem(isbn))
             self.table.setItem(row, 3, QTableWidgetItem(available))
-            self.table.setItem(row, 4, QTableWidgetItem(total)) 
+            self.table.setItem(row, 4, QTableWidgetItem(total))
+            
+    def generate_report(self):
+        """Generate report based on selected report type"""
+        # Get the selected report type
+        selected_id = self.button_group.checkedId()
+        if selected_id == -1:
+            QMessageBox.warning(self, "No Selection", "Please select a report type first.")
+            return
+            
+        # Get the selected report type text
+        selected_report = self.report_buttons[selected_id].parent().findChild(QLabel).text()
+        
+        # Show loading state
+        self.generate_btn.setEnabled(False)
+        self.generate_btn.setText("Generating...")
+        
+        # Simulate report generation delay
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(1500, lambda: self._show_report_preview(selected_report))
+    
+    def _show_report_preview(self, report_type):
+        """Show the preview of the generated report"""
+        # Reset button state
+        self.generate_btn.setEnabled(True)
+        self.generate_btn.setText("Generate Report")
+        
+        # Update the preview based on report type
+        if report_type == "Inventory Status":
+            self._show_inventory_report()
+        elif report_type == "Borrowed Books":
+            self._show_borrowed_books_report()
+        elif report_type == "Overdue Books":
+            self._show_overdue_books_report()
+        elif report_type == "User Activity":
+            self._show_user_activity_report()
+    
+    def _show_inventory_report(self):
+        """Show inventory status report"""
+        # Set table headers
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Title", "Author", "ISBN", "Available", "Total"])
+        
+        # Sample data - in a real app, this would come from your database
+        data = [
+            ("The Great Adventure", "Alex Turner", "978-0321765723", "15", "20"),
+            ("Mystery of the Hidden Key", "Olivia Bennett", "978-0451419439", "8", "10"),
+            ("Journey Through Time", "Ethan Carter", "978-0060558123", "12", "15"),
+            ("Secrets of the Ancient World", "Sophia Davis", "978-0385534208", "5", "5"),
+            ("Echoes of the Past", "Liam Foster", "978-0316037842", "20", "25"),
+        ]
+        
+        self._populate_table(data)
+    
+    def _show_borrowed_books_report(self):
+        """Show borrowed books report"""
+        self.table.setColumnCount(6)
+        self.table.setHorizontalHeaderLabels(["Title", "Borrower", "Borrow Date", "Due Date", "Days Left", "Status"])
+        
+        # Sample data
+        from datetime import date, timedelta
+        today = date.today()
+        data = [
+            ("The Great Adventure", "John Doe", (today - timedelta(days=5)).strftime("%Y-%m-%d"), 
+             (today + timedelta(days=2)).strftime("%Y-%m-%d"), "2", "Active"),
+            ("Mystery of the Hidden Key", "Jane Smith", (today - timedelta(days=10)).strftime("%Y-%m-%d"),
+             today.strftime("%Y-%m-%d"), "0", "Due Today"),
+            ("Journey Through Time", "Bob Johnson", (today - timedelta(days=3)).strftime("%Y-%m-%d"),
+             (today + timedelta(days=4)).strftime("%Y-%m-%d"), "4", "Active"),
+        ]
+        
+        self._populate_table(data)
+    
+    def _show_overdue_books_report(self):
+        """Show overdue books report"""
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Title", "Borrower", "Due Date", "Days Overdue", "Fine"])
+        
+        # Sample data
+        from datetime import date, timedelta
+        today = date.today()
+        data = [
+            ("Secrets of the Ancient World", "Alice Brown", 
+             (today - timedelta(days=5)).strftime("%Y-%m-%d"), "5", "$2.50"),
+            ("Echoes of the Past", "Charlie Wilson", 
+             (today - timedelta(days=2)).strftime("%Y-%m-%d"), "2", "$1.00"),
+        ]
+        
+        self._populate_table(data)
+    
+    def _show_user_activity_report(self):
+        """Show user activity report"""
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["User", "Books Borrowed", "Books Returned", "Overdue Books", "Total Fines"])
+        
+        # Sample data
+        data = [
+            ("John Doe", "12", "10", "2", "$5.00"),
+            ("Jane Smith", "8", "7", "1", "$2.50"),
+            ("Bob Johnson", "15", "14", "0", "$0.00"),
+        ]
+        
+        self._populate_table(data)
+    
+    def _populate_table(self, data):
+        """Populate the table with data"""
+        self.table.setRowCount(len(data))
+        for row, row_data in enumerate(data):
+            for col, value in enumerate(row_data):
+                item = QTableWidgetItem(str(value))
+                # Style overdue items in red
+                if value in ["Overdue", "Due Today"] or (isinstance(value, str) and value.startswith("-")):
+                    item.setForeground(QColor("#d32f2f"))
+                self.table.setItem(row, col, item)
