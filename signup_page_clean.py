@@ -135,7 +135,13 @@ class SignupForm(QWidget):
     def add_user_to_database(self, username, email, password, phone):
         """Add a new user to the database."""
         print(f"Attempting to add user: {username}, {email}")
-        conn = sqlite3.connect("intelli_libraria.db")
+        # Use centralized DB path
+        try:
+            from data.database import DB_PATH
+        except Exception:
+            import os as _os
+            DB_PATH = _os.path.join(_os.path.dirname(__file__), 'intelli_libraria.db')
+        conn = sqlite3.connect(DB_PATH)
         try:
             cursor = conn.cursor()
             

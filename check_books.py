@@ -3,7 +3,12 @@ import sqlite3
 def check_books():
     try:
         # Connect to the database
-        conn = sqlite3.connect('intelli_libraria.db')
+        try:
+            from data.database import DB_PATH
+        except Exception:
+            import os as _os
+            DB_PATH = _os.path.join(_os.path.dirname(__file__), 'intelli_libraria.db')
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
         # Get table info

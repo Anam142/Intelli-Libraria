@@ -1,4 +1,5 @@
 import sys
+import os
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from classic_splash import ClassicSplashScreen
 from login_window import LoginWindow
@@ -36,7 +37,10 @@ def main():
                 widget.close()
         
         # Create and show login window
-        login_window = LoginWindow(bg_image_path="assets/login_bg.jpg")
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        bg_candidate = os.path.join(base_dir, "assets", "login_bg.jpg")
+        bg_path = bg_candidate if os.path.exists(bg_candidate) else "assets/login_bg.jpg"
+        login_window = LoginWindow(bg_image_path=bg_path)
         # The window is already shown in its __init__ method
         
         def on_login_success():

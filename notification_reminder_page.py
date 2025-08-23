@@ -11,9 +11,45 @@ class NotificationReminderPage(QWidget):
         super().__init__()
         self.setStyleSheet("background: #f4f5f7;")
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(32, 24, 16, 24)  # Reduced right margin from 32 to 16
+        # Tighter margins to widen content and reduce bottom whitespace
+        self.main_layout.setContentsMargins(24, 16, 24, 10)
         self.main_layout.setSpacing(0)
         self.current_tab = 'notifications'  # Default tab
+        # State for the Notifications screen
+        self.active_filter = 'All'
+        self.search_query = ''
+        self.notifications_data = [
+            {
+                'title': 'Due Date Reminder',
+                'description': "The book 'The Secret Garden' is due in 2 days.",
+                'date': '2024-03-15',
+                'category': 'Due Date',
+            },
+            {
+                'title': 'Reservation Update',
+                'description': "Your reservation for 'The Great Gatsby' is now available.",
+                'date': '2024-03-14',
+                'category': 'Reservation',
+            },
+            {
+                'title': 'Return Confirmation',
+                'description': "The book 'To Kill a Mockingbird' has been returned successfully.",
+                'date': '2024-03-12',
+                'category': 'Reservation',
+            },
+            {
+                'title': 'Overdue Notice',
+                'description': "The book '1984' is overdue by 1 day.",
+                'date': '2024-03-10',
+                'category': 'Due Date',
+            },
+            {
+                'title': 'Reservation Cancellation',
+                'description': "Your reservation for 'Pride and Prejudice' has been cancelled.",
+                'date': '2024-03-08',
+                'category': 'Reservation',
+            },
+        ]
         self.render()
 
     def clear_main_layout(self):
@@ -41,72 +77,17 @@ class NotificationReminderPage(QWidget):
     def render(self):
         self.clear_main_layout()
         
-        if self.current_tab == 'notifications':
-            # Header row with title, search bar, and button on same line (for notifications)
-            header_container = QWidget()
-            header_layout = QHBoxLayout(header_container)
-            header_layout.setContentsMargins(0, 0, 0, 24)
-            header_layout.setSpacing(16)
-            
-            # Title on the left
-            title_label = QLabel("Notification & Reminders")
-            title_label.setStyleSheet("font-size: 32px; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 800; color: #232b36; margin-bottom: 0px; margin-top: 0px;")
-            
-            # Search bar in center
-            search_input = QLineEdit()
-            search_input.setPlaceholderText("Search notifications...")
-            search_input.setStyleSheet("""
-                QLineEdit {
-                    background: #fff;
-                    border: 1.5px solid #e5e7eb;
-                    border-radius: 10px;
-                    padding: 16px 20px;
-                    font-size: 16px;
-                    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-                    color: #232b36;
-                    min-width: 300px;
-                }
-                QLineEdit:focus {
-                    border: 1.5px solid #4f46e5;
-                }
-            """)
-            
-            # Mark all as read button on the right
-            mark_read_btn = QPushButton("Mark all as read")
-            mark_read_btn.setStyleSheet("""
-                QPushButton {
-                    background: #3b82f6;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 12px 24px;
-                    font-size: 14px;
-                    font-weight: 500;
-                    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-                }
-                QPushButton:hover {
-                    background: #2563eb;
-                }
-            """)
-            
-            header_layout.addWidget(title_label)
-            header_layout.addStretch(1)
-            header_layout.addWidget(search_input)
-            header_layout.addWidget(mark_read_btn)
-            
-            self.main_layout.addWidget(header_container)
-        else:
-            # For reminders tab - only show the title
-            title_label = QLabel("Notification & Reminders")
-            title_label.setStyleSheet("font-size: 32px; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 800; color: #232b36; margin-bottom: 24px; margin-top: 0px;")
-            self.main_layout.addWidget(title_label, alignment=Qt.AlignLeft)
+        # Title (always shown)
+        title_label = QLabel("Notifications & Reminders")
+        title_label.setStyleSheet("font-size: 28px; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 800; color: #232b36; margin-bottom: 6px; margin-top: 0px;")
+        self.main_layout.addWidget(title_label, alignment=Qt.AlignLeft)
         
         # Tabs always below the heading
         tab_row = QHBoxLayout()
-        tab_row.setContentsMargins(0, 0, 0, 24)  # Restored to 24 for proper spacing
+        tab_row.setContentsMargins(0, 0, 0, 12)
         tab_row.setSpacing(16)
         
-        notif_tab = QLabel('Notification')  # Changed to singular
+        notif_tab = QLabel('Notifications')
         remind_tab = QLabel('Reminders')
         
         # Clear any previous styling and set clean states
@@ -151,155 +132,224 @@ class NotificationReminderPage(QWidget):
         
         self.main_layout.addLayout(tab_row)
         
-        # Render content for the active tab
+        # Search bar (below tabs when on notifications), otherwise simple spacing
         if self.current_tab == 'notifications':
+            self.add_notifications_search_and_filters()
             self.render_notifications_content()
         elif self.current_tab == 'reminders':
             self.render_reminders_content()
 
-    def render_notifications_content(self):
-        """Render the notifications tab content"""
-        # Filter placeholders (4 empty squares as shown in image)
-        filter_container = QWidget()
-        filter_layout = QHBoxLayout(filter_container)
-        filter_layout.setContentsMargins(0, 0, 0, 24)
-        filter_layout.setSpacing(8)
-        
-        for i in range(4):
-            placeholder = QWidget()
-            placeholder.setFixedSize(24, 24)
-            placeholder.setStyleSheet("background: #dbeafe; border-radius: 4px;")
-            filter_layout.addWidget(placeholder)
-        
-        filter_layout.addStretch(1)
-        self.main_layout.addWidget(filter_container)
-        
-        # Notifications list - exactly 3 items as shown in image
-        notifications_container = QWidget()
-        notifications_layout = QVBoxLayout(notifications_container)
-        notifications_layout.setContentsMargins(0, 0, 0, 0)
-        notifications_layout.setSpacing(16)
-        
-        # Notification items - exactly as shown in the reference image
-        notifications_data = [
-            {
-                "title": "New Book Arrival",
-                "description": "The book 'Python Programming' you requested is now available for borrowing.",
-                "timestamp": "2 hours ago"
-            },
-            {
-                "title": "Due Date Reminder",
-                "description": "Your borrowed book 'Clean Code' is due in 2 days.",
-                "timestamp": "1 day ago"
-            },
-            {
-                "title": "Library Event",
-                "description": "Join our weekly book club meeting this Friday at 5 PM.",
-                "timestamp": "2 days ago"
+    def add_notifications_search_and_filters(self):
+        # Search bar
+        search_input = QLineEdit()
+        search_input.setPlaceholderText("Search notifications")
+        search_input.setText(self.search_query)
+        search_input.textChanged.connect(self.on_search_changed)
+        search_input.setStyleSheet(
+            """
+            QLineEdit {
+                background: #ffffff;
+                border: 1.5px solid #e5e7eb;
+                border-radius: 10px;
+                padding: 16px 20px;
+                font-size: 16px;
+                font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+                color: #232b36;
+                margin: 8px 0 12px 0;
             }
-        ]
-        
-        for notification in notifications_data:
-            notification_item = QWidget()
-            notification_item.setStyleSheet("""
+            QLineEdit:focus {
+                border: 1.5px solid #3b82f6;
+            }
+            """
+        )
+        self.main_layout.addWidget(search_input)
+
+        # Filter chips row
+        chips_container = QWidget()
+        chips_layout = QHBoxLayout(chips_container)
+        chips_layout.setContentsMargins(0, 0, 0, 10)
+        chips_layout.setSpacing(10)
+
+        for label in ["All", "Due Date", "Reservation"]:
+            chip = self.build_chip(label, selected=(label == self.active_filter))
+            chips_layout.addWidget(chip)
+
+        chips_layout.addStretch(1)
+        self.main_layout.addWidget(chips_container)
+
+    def build_chip(self, text, selected=False):
+        btn = QPushButton(text)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setCheckable(True)
+        btn.setChecked(selected)
+        btn.clicked.connect(lambda: self.on_chip_clicked(text))
+        btn.setStyleSheet(
+            """
+            QPushButton {
+                background: #f3f4f6;
+                color: #374151;
+                border: 1px solid #e5e7eb;
+                border-radius: 18px;
+                padding: 6px 12px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            QPushButton:checked {
+                background: #e0e7ff;
+                color: #3730a3;
+                border-color: #c7d2fe;
+            }
+            QPushButton:hover {
+                background: #e5e7eb;
+            }
+            """
+        )
+        return btn
+
+    def on_chip_clicked(self, label):
+        if self.active_filter != label:
+            self.active_filter = label
+            self.render()  # re-render with new filter
+
+    def on_search_changed(self, text):
+        self.search_query = text
+        # Re-render live for simplicity
+        self.render()
+
+    def render_notifications_content(self):
+        """Render the notifications tab content matching the reference layout."""
+        # Filtered data
+        filtered = []
+        for item in self.notifications_data:
+            if self.active_filter != 'All' and item['category'] != self.active_filter:
+                continue
+            if self.search_query:
+                q = self.search_query.lower()
+                if q not in item['title'].lower() and q not in item['description'].lower():
+                    continue
+            filtered.append(item)
+
+        # List container
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(10)
+
+        for item in filtered:
+            row = QWidget()
+            # Borderless row to match the reference image
+            row.setStyleSheet(
+                """
                 QWidget {
-                    background: #fff;
-                    border: 1px solid #e5e7eb;
-                    border-radius: 12px;
-                    padding: 0px;
-                }
-            """)
-            
-            item_layout = QHBoxLayout(notification_item)
-            item_layout.setContentsMargins(20, 16, 20, 16)
-            item_layout.setSpacing(16)
-            
-            # Icon (light gray square placeholder as shown in image)
-            icon_label = QWidget()
-            icon_label.setFixedSize(24, 24)
-            icon_label.setStyleSheet("background: #f3f4f6; border-radius: 4px;")
-            
-            # Content
-            content_widget = QWidget()
-            content_layout = QVBoxLayout(content_widget)
-            content_layout.setContentsMargins(0, 0, 0, 0)
-            content_layout.setSpacing(4)
-            
-            title_label = QLabel(notification["title"])
-            title_label.setStyleSheet("""
-                QLabel {
                     background: transparent;
                     border: none;
-                    font-size: 16px;
-                    font-weight: 700;
-                    color: #232b36;
-                    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+                    border-radius: 0px;
                 }
-            """)
-            
-            desc_label = QLabel(notification["description"])
-            desc_label.setStyleSheet("""
-                QLabel {
-                    background: transparent;
-                    border: none;
-                    font-size: 14px;
-                    color: #6b7280;
-                    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-                }
-            """)
-            desc_label.setWordWrap(True)
-            
-            content_layout.addWidget(title_label)
-            content_layout.addWidget(desc_label)
-            
-            # Right side with timestamp and ellipsis
-            right_widget = QWidget()
-            right_layout = QVBoxLayout(right_widget)
+                """
+            )
+            row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            row.setMinimumHeight(64)
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(14, 12, 14, 12)
+            row_layout.setSpacing(12)
+
+            # Icon using Unicode code point (ASCII-style literal escapes)
+            icon = QLabel(self.get_icon_for_item(item))
+            icon.setFixedSize(36, 36)
+            icon.setAlignment(Qt.AlignCenter)
+            icon.setStyleSheet("background: #f3f4f6; border: none; border-radius: 8px;")
+            try:
+                icon.setFont(QFont("Segoe UI Emoji", 20))
+            except Exception:
+                icon.setFont(QFont("Arial", 18))
+
+            # Texts
+            text_widget = QWidget()
+            text_layout = QVBoxLayout(text_widget)
+            text_layout.setContentsMargins(0, 0, 0, 0)
+            text_layout.setSpacing(2)
+
+            title = QLabel(item['title'])
+            title.setStyleSheet("font-size: 15px; font-weight: 700; color: #111827; background: transparent;")
+            desc = QLabel(item['description'])
+            desc.setWordWrap(True)
+            desc.setStyleSheet("font-size: 13px; color: #6b7280; background: transparent;")
+
+            text_layout.addWidget(title)
+            text_layout.addWidget(desc)
+
+            # Right aligned date only (no ellipsis), per reference image
+            right = QWidget()
+            right_layout = QVBoxLayout(right)
             right_layout.setContentsMargins(0, 0, 0, 0)
-            right_layout.setSpacing(8)
+            right_layout.setSpacing(6)
             right_layout.setAlignment(Qt.AlignRight | Qt.AlignTop)
-            
-            timestamp_label = QLabel(notification["timestamp"])
-            timestamp_label.setStyleSheet("""
-                QLabel {
-                    background: transparent;
-                    border: none;
-                    font-size: 12px;
-                    color: #9ca3af;
-                    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-                }
-            """)
-            
-            # Ellipsis button (...)
-            ellipsis_btn = QPushButton("...")
-            ellipsis_btn.setFixedSize(20, 20)
-            ellipsis_btn.setStyleSheet("""
-                QPushButton {
-                    background: transparent;
-                    border: none;
-                    color: #9ca3af;
-                    font-size: 16px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    color: #6b7280;
-                }
-            """)
-            
-            right_layout.addWidget(timestamp_label)
-            right_layout.addWidget(ellipsis_btn)
-            
-            item_layout.addWidget(icon_label)
-            item_layout.addWidget(content_widget, 1)
-            item_layout.addWidget(right_widget)
-            
-            notifications_layout.addWidget(notification_item)
-        
-        # Add stretch to push notifications to top
-        notifications_layout.addStretch(1)
-        
-        # Add notifications container to main layout
-        self.main_layout.addWidget(notifications_container, 1)
+
+            date_label = QLabel(item['date'])
+            date_label.setStyleSheet("font-size: 14px; font-weight: 700; color: #64748b; background: transparent;")
+
+            right_layout.addWidget(date_label)
+            # Spacer to keep minimal vertical size
+            right_layout.addStretch(1)
+
+            row_layout.addWidget(icon)
+            row_layout.addWidget(text_widget, 1)
+            row_layout.addWidget(right)
+
+            container_layout.addWidget(row)
+
+        # Keep a tiny spacer so the footer is closer to the list
+        container_layout.addSpacing(6)
+        self.main_layout.addWidget(container, 1)
+
+        # Footer with Mark all as read button aligned right
+        footer = QHBoxLayout()
+        footer.setContentsMargins(0, 6, 0, 0)
+        footer.addStretch(1)
+        mark_all = QPushButton("Mark all as read")
+        mark_all.clicked.connect(self.on_mark_all_read)
+        mark_all.setStyleSheet(
+            """
+            QPushButton {
+                background: #f3f4f6;
+                color: #111827;
+                border: none;
+                border-radius: 12px;
+                padding: 8px 16px;
+                font-size: 14px;
+                font-weight: 600;
+            }
+            QPushButton:hover { background: #e5e7eb; }
+            """
+        )
+        footer.addWidget(mark_all)
+        # Reduce space below the footer by adding a small stretch with low factor
+        wrapper = QWidget()
+        wrapper.setLayout(footer)
+        self.main_layout.addWidget(wrapper)
+
+    def on_mark_all_read(self):
+        QMessageBox.information(self, "Notifications", "All notifications marked as read.")
+
+    def get_icon_for_item(self, item):
+        """Return a Unicode icon character (specified via code point) for a notification item."""
+        title = item.get('title', '')
+        category = item.get('category', '')
+        # Icons via Unicode escapes:
+        # Calendar: \U0001F4C5, Bell: \U0001F514, Check: \u2705, Alarm: \u23F0, Cross: \u274C
+        if 'Due Date' in title or category == 'Due Date':
+            return "\U0001F4C5"  # 📅
+        if 'Reservation Update' in title:
+            return "\U0001F514"  # 🔔
+        if 'Return' in title:
+            return "\u2705"      # ✅
+        if 'Overdue' in title:
+            return "\u23F0"      # ⏰
+        if 'Cancellation' in title:
+            return "\u274C"      # ❌
+        if category == 'Reservation':
+            return "\U0001F4E6"  # 📦 as a generic reservation/package icon
+        return "\u25CF"          # ● default bullet
 
     def render_reminders_content(self):
         """Render the reminders tab content"""

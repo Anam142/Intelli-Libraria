@@ -2,13 +2,14 @@ import sqlite3
 import os
 
 # Check if database file exists
-if not os.path.exists('intelli_libraria.db'):
-    print("Error: Database file 'intelli_libraria.db' not found!")
+from data.database import DB_PATH
+if not os.path.exists(DB_PATH):
+    print(f"Error: Database file '{DB_PATH}' not found!")
     exit(1)
 
 # Connect to database
 try:
-    conn = sqlite3.connect('intelli_libraria.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     # Check tables

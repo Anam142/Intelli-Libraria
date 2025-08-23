@@ -521,6 +521,12 @@ class DashboardWindow(QMainWindow):
         self.pages_stack.setCurrentWidget(self.add_user_page)
 
     def show_book_inventory(self):
+        # Load books when navigating to the page to ensure fresh data and avoid early popups
+        try:
+            if hasattr(self.book_inventory_page, 'load_books'):
+                self.book_inventory_page.load_books()
+        except Exception as e:
+            print(f"Error loading books on navigation: {e}")
         self.pages_stack.setCurrentWidget(self.book_inventory_page)
 
     def show_borrow_return(self):

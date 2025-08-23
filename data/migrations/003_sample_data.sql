@@ -1,10 +1,11 @@
 -- Insert sample users (1 admin, 4 members)
-INSERT INTO users (user_code, full_name, email, phone, role, status) VALUES
-('USR-000001', 'Admin User', 'admin@lms.test', '03001234567', 'Admin', 'Active'),
-('USR-000002', 'John Smith', 'john.smith@example.com', '03011234567', 'Member', 'Active'),
-('USR-000003', 'Sarah Johnson', 'sarah.j@example.com', '03021234567', 'Member', 'Active'),
-('USR-000004', 'Michael Brown', 'michael.b@example.com', '03031234567', 'Member', 'Inactive'),
-('USR-000005', 'Emma Wilson', 'emma.w@example.com', '03041234567', 'Member', 'Active');
+-- Password for all users is '1234' (plain text for now, will be hashed in migration 004)
+INSERT INTO users (user_code, username, full_name, email, phone, role, status, password_hash) VALUES
+('USR-000001', 'admin', 'Admin User', 'admin@lms.test', '03001234567', 'admin', 'active', '1234'),
+('USR-000002', 'johnsmith', 'John Smith', 'john.smith@example.com', '03011234567', 'member', 'active', '1234'),
+('USR-000003', 'sarahj', 'Sarah Johnson', 'sarah.j@example.com', '03021234567', 'member', 'active', '1234'),
+('USR-000004', 'michaelb', 'Michael Brown', 'michael.b@example.com', '03031234567', 'member', 'inactive', '1234'),
+('USR-000005', 'emmaw', 'Emma Wilson', 'emma.w@example.com', '03041234567', 'member', 'active', '1234');
 
 -- Insert sample books
 INSERT INTO books (book_code, title, authors, isbn, quantity_total, quantity_available, branch) VALUES

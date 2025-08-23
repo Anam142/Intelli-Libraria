@@ -82,8 +82,7 @@ class BookInventoryPage(QWidget):
     def __init__(self):
         super().__init__()
         self.setup_ui()
-        # Load books when the page initializes
-        self.load_books()
+        # Do not load books on initialization to avoid popups before the page is shown
         
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -346,7 +345,8 @@ class BookInventoryPage(QWidget):
                 books = database.get_all_books()
             
             if not books:
-                QMessageBox.information(self, "No Books", "No books found in the database.")
+                # Show an empty table without interrupting the user
+                self.books_table.setRowCount(0)
                 return
             
             print(f"Found {len(books)} books to display")
@@ -503,7 +503,8 @@ class BookInventoryPage(QWidget):
         try:
             books = database.get_all_books()
             if not books:
-                QMessageBox.information(self, "No Books", "No books found in the database.")
+                # Keep the table empty silently when there are no books
+                self.books_table.setRowCount(0)
                 return
             self.populate_books(books)
         except Exception as e:

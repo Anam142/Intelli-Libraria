@@ -202,7 +202,8 @@ class AddUserDialog(QDialog):
                 width: 30px;
             }
         """)
-        self.role_combo.addItems(["Admin", "Librarian", "Member"])
+        # Restrict to valid roles as per database constraints
+        self.role_combo.addItems(["Admin", "Member"])
         self.role_field.addWidget(role_label)
         self.role_field.addWidget(self.role_combo)
         right_column.addLayout(self.role_field)
@@ -231,7 +232,8 @@ class AddUserDialog(QDialog):
                 width: 30px;
             }
         """)
-        self.status_combo.addItems(["Active", "Inactive", "Suspended"])
+        # Restrict to valid statuses as per database constraints
+        self.status_combo.addItems(["Active", "Inactive"])
         self.status_field.addWidget(status_label)
         self.status_field.addWidget(self.status_combo)
         right_column.addLayout(self.status_field)
@@ -392,6 +394,7 @@ class AddUserDialog(QDialog):
             
         try:
             # Add user to database
+            # Add user to database (profile images are not stored in DB currently)
             add_user(
                 full_name=full_name,
                 email=email,
@@ -399,7 +402,6 @@ class AddUserDialog(QDialog):
                 status=status,
                 contact=contact if contact else None,
                 address=address if address else None,
-                profile_image=self.profile_image_path  # Save the image path to database
             )
             
             # Emit signal and close dialog

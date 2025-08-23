@@ -5,7 +5,12 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushBut
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QFont, QColor, QImage, QPixmap
 import cv2
-from pyzbar.pyzbar import decode
+try:
+    from pyzbar.pyzbar import decode as zbar_decode
+    PYZBAR_AVAILABLE = True
+except Exception as _zbar_err:
+    PYZBAR_AVAILABLE = False
+    ZBAR_IMPORT_ERROR = _zbar_err
 import numpy as np
 
 class BorrowBookScreen(QWidget):
@@ -560,6 +565,14 @@ class BorrowReturnPage(QWidget):
 
     def scan_barcode(self):
         """Handle barcode scanning functionality"""
+        if not PYZBAR_AVAILABLE:
+            QMessageBox.critical(
+                self,
+                "Barcode Scanner Unavailable",
+                "Barcode scanning requires ZBar (pyzbar). The library failed to load on this system.\n\n"
+                "You can still use manual entry."
+            )
+            return
         # Create a dialog for the camera feed
         self.scan_dialog = QWidget()
         self.scan_dialog.setWindowTitle("Barcode Scanner - Press ESC to exit full screen")
@@ -644,7 +657,7 @@ class BorrowReturnPage(QWidget):
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
         # Decode barcodes
-        barcodes = decode(frame)
+        barcodes = zbar_decode(frame) if PYZBAR_AVAILABLE else []
         
         # Process each barcode found
         for barcode in barcodes:

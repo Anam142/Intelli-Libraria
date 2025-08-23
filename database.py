@@ -1,11 +1,18 @@
+import os
 import sqlite3
 from PyQt5.QtWidgets import QMessageBox
 
 def create_connection():
     """Create a database connection to the SQLite database."""
+    # Always reuse the shared DB managed by data/database.py
+    try:
+        from data.database import DB_PATH
+    except Exception:
+        # Fallback to project root
+        DB_PATH = os.path.join(os.path.dirname(__file__), 'intelli_libraria.db')
     conn = None
     try:
-        conn = sqlite3.connect("intelli_libraria.db")
+        conn = sqlite3.connect(DB_PATH)
     except sqlite3.Error as e:
         print(e)
     return conn
@@ -14,14 +21,49 @@ def update_database_schema(conn):
     """Update the database schema to match the current application requirements."""
     try:
         cursor = conn.cursor()
-        # Add phone column if it doesn't exist
+        # Inspect current users table columns
         cursor.execute("PRAGMA table_info(users)")
         columns = [column[1] for column in cursor.fetchall()]
-        
+
+        # Ensure modern schema columns exist
+        if 'user_code' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN user_code TEXT")
+        if 'full_name' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN full_name TEXT")
         if 'phone' not in columns:
-            cursor.execute('ALTER TABLE users ADD COLUMN phone TEXT')
-            conn.commit()
-            print("Database schema updated: Added 'phone' column to users table")
+            cursor.execute("ALTER TABLE users ADD COLUMN phone TEXT")
+        if 'contact' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN contact TEXT")
+        if 'address' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN address TEXT")
+        if 'role' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'Member'")
+        if 'status' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'Active'")
+        if 'created_at' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+        if 'updated_at' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+        conn.commit()
+
+        # Backfill data for newly added columns
+        # If full_name is missing but username exists, copy it
+        if 'username' in columns:
+            try:
+                cursor.execute("UPDATE users SET full_name = COALESCE(full_name, username)")
+            except Exception:
+                pass
+        # Generate user_code for rows where it is NULL
+        try:
+            cursor.execute(
+                """
+                UPDATE users
+                SET user_code = COALESCE(user_code, 'USR-' || printf('%06d', id))
+                WHERE user_code IS NULL OR user_code = ''
+                """
+            )
+        except Exception:
+            pass
     except sqlite3.Error as e:
         print(f"Error updating database schema: {e}")
 
@@ -57,18 +99,20 @@ def create_tables():
     if conn is not None:
         try:
             cursor = conn.cursor()
-            # Create users table (if not exists)
+            # Create users table (modern schema) if it doesn't exist
             cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users(
+            CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE,
+                user_code TEXT UNIQUE,
+                full_name TEXT,
                 email TEXT UNIQUE,
-                password TEXT DEFAULT '1234',
-                role TEXT,
-                status TEXT,
+                phone TEXT,
+                role TEXT DEFAULT 'Member',
+                status TEXT DEFAULT 'Active',
                 contact TEXT,
                 address TEXT,
-                phone TEXT
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             ''')
             # Create books table
@@ -287,7 +331,7 @@ def get_all_reservations():
         cursor = conn.cursor()
         # Join query to get user and book information
         cursor.execute("""
-        SELECT r.id, b.title, u.username, r.reservation_date
+        SELECT r.id, b.title, u.full_name, r.reservation_date
         FROM reservations r
         JOIN users u ON r.user_id = u.id
         JOIN books b ON r.book_id = b.id
@@ -318,22 +362,29 @@ def delete_reservation(reservation_id):
             conn.close()
 
 def get_all_users():
-    """Fetch all users from the database.
-    
+    """Fetch all users as tuples in the order expected by the UI.
+
     Returns:
-        list: A list of dictionaries containing user data
+        list[tuple]: (id, full_name, email, role, status, contact, address)
     """
     conn = create_connection()
     try:
-        conn.row_factory = sqlite3.Row  # This enables column access by name
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id, user_code, full_name, email, phone, role, status, 
-                   contact, address, created_at, updated_at 
-            FROM users 
+        cursor.execute(
+            """
+            SELECT 
+                id,
+                COALESCE(full_name, '') AS full_name,
+                COALESCE(email, '') AS email,
+                COALESCE(role, 'Member') AS role,
+                COALESCE(status, 'Active') AS status,
+                COALESCE(phone, contact) AS contact,
+                COALESCE(address, '') AS address
+            FROM users
             ORDER BY full_name
-        """)
-        return [dict(row) for row in cursor.fetchall()]
+            """
+        )
+        return cursor.fetchall()
     except sqlite3.Error as e:
         print(f"Database error: {e}")
         return []
@@ -364,6 +415,15 @@ def add_user(full_name, email, role, status, phone=None, contact=None, address=N
     conn = create_connection()
     try:
         cursor = conn.cursor()
+        # Validate unique email early to give a clearer error
+        try:
+            cursor.execute("SELECT 1 FROM users WHERE email = ? LIMIT 1", (email,))
+            if cursor.fetchone():
+                QMessageBox.warning(None, "Error", "A user with this email already exists.")
+                return False
+        except Exception:
+            # If the check fails for any reason, continue to attempt insert
+            pass
         cursor.execute("""
             INSERT INTO users 
             (user_code, full_name, email, phone, role, status, contact, address) 
@@ -372,13 +432,16 @@ def add_user(full_name, email, role, status, phone=None, contact=None, address=N
         conn.commit()
         return True
     except sqlite3.IntegrityError as e:
-        if "UNIQUE constraint failed: users.email" in str(e):
+        error_text = str(e)
+        if "UNIQUE constraint failed: users.email" in error_text:
             QMessageBox.warning(None, "Error", "A user with this email already exists.")
-        elif "UNIQUE constraint failed: users.user_code" in str(e):
+        elif "UNIQUE constraint failed: users.user_code" in error_text:
             # Retry with a new user code if there's a collision (very rare)
             return add_user(full_name, email, role, status, phone, contact, address)
+        elif "CHECK constraint failed" in error_text:
+            QMessageBox.warning(None, "Error", "Invalid role/status value. Use Role: Admin/Member and Status: Active/Inactive.")
         else:
-            QMessageBox.warning(None, "Error", "Failed to add user. Please check the data and try again.")
+            QMessageBox.warning(None, "Error", f"Failed to add user: {error_text}")
         return False
     except sqlite3.Error as e:
         print(f"Database error: {e}")
@@ -404,26 +467,30 @@ def delete_user(user_id):
             conn.close()
 
 def get_user_by_id(user_id):
-    """Fetch a single user by their ID.
-    
-    Args:
-        user_id (int): The ID of the user to fetch
-        
+    """Fetch a single user by their ID, returned as tuple.
+
     Returns:
-        dict: A dictionary containing user data, or None if not found
+        tuple | None: (id, full_name, email, role, status, contact, address)
     """
     conn = create_connection()
     try:
-        conn.row_factory = sqlite3.Row  # This enables column access by name
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id, user_code, full_name, email, phone, role, status, contact, address, 
-                   created_at, updated_at 
-            FROM users 
+        cursor.execute(
+            """
+            SELECT 
+                id,
+                COALESCE(full_name, '') AS full_name,
+                COALESCE(email, '') AS email,
+                COALESCE(role, 'Member') AS role,
+                COALESCE(status, 'Active') AS status,
+                COALESCE(phone, contact) AS contact,
+                COALESCE(address, '') AS address
+            FROM users
             WHERE id = ?
-        """, (user_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
+            """,
+            (user_id,)
+        )
+        return cursor.fetchone()
     except sqlite3.Error as e:
         print(f"Database error: {e}")
         return None

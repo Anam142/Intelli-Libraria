@@ -3,7 +3,12 @@ import sqlite3
 def check_database():
     try:
         # Connect to the database
-        conn = sqlite3.connect('intelli_libraria.db')
+        try:
+            from data.database import DB_PATH
+        except Exception:
+            import os as _os
+            DB_PATH = _os.path.join(_os.path.dirname(__file__), 'intelli_libraria.db')
+        conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row  # This enables column access by name
         cursor = conn.cursor()
         

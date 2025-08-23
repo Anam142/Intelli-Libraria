@@ -2,8 +2,9 @@ import sys
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QMessageBox, QSpacerItem, QSizePolicy, QStackedWidget,
-    QGraphicsDropShadowEffect
+    QGraphicsDropShadowEffect, QCheckBox
 )
+from PyQt5.QtGui import QPixmap, QFont, QPainter, QIcon
 from PyQt5.QtGui import QPixmap, QFont, QPainter
 from PyQt5.QtCore import Qt, pyqtSignal
 from signup_page_clean import SignupPage
@@ -47,7 +48,7 @@ class LoginWindow(QMainWindow):
     """The main login window, combining the background and the login form."""
     login_successful = pyqtSignal()
     
-    def __init__(self, bg_image_path):
+    def __init__(self, bg_image_path=None):
         super().__init__()
         self.setWindowTitle("Intelli Libraria _ Login")
         
@@ -77,6 +78,20 @@ class LoginWindow(QMainWindow):
         
         # Show the window
         self.show()
+
+        # Resolve default background path if not provided
+        import os as _os
+        if bg_image_path is None:
+            try:
+                base_dir = _os.path.dirname(_os.path.abspath(__file__))
+            except Exception:
+                base_dir = _os.getcwd()
+            default_bg_abs = _os.path.join(base_dir, "assets", "login_bg.jpg")
+            if _os.path.exists(default_bg_abs):
+                bg_image_path = default_bg_abs
+            else:
+                default_bg_rel = _os.path.join("assets", "login_bg.jpg")
+                bg_image_path = default_bg_rel if _os.path.exists(default_bg_rel) else "login_bg.jpg"
 
         # Set up the background
         self.background = BackgroundWidget(bg_image_path, self)
@@ -125,48 +140,53 @@ class LoginWindow(QMainWindow):
         """Sets up the widgets and styling for the login form card."""
         self.login_card.setStyleSheet("""
             QWidget#login_card {
-                background: rgba(255, 255, 255, 0.95); /* Semi-transparent white */
-                border-radius: 24px;  /* More rounded corners */
-                padding: 20px;
+                background: rgba(255, 255, 255, 0.92);
+                border-radius: 24px;
+                padding: 28px;
             }
             QLabel#title_container {
                 background: white;
                 border: 1px solid #2c3e50;  /* Dark border */
-                border-radius: 50px;  /* Pill shape */
-                padding: 8px 24px;
-                margin-bottom: 20px;
+                border-radius: 50px;
+                padding: 10px 26px;
+                margin-bottom: 16px;
                 max-width: 200px;
                 margin-left: auto;
                 margin-right: auto;
             }
             QLabel#title_label {
                 font-family: Arial;
-                font-size: 22px;  /* Increased from 18px */
-                font-weight: 700;  /* Made bolder (700 is bold) */
+                font-size: 24px;
+                font-weight: 800;
                 color: #2c3e50; /* Dark text */
                 text-align: center;
             }
             QLineEdit {
-                padding: 14px;
-                border: 1px solid #d1d5db; /* Light gray border */
-                border-radius: 8px;  /* More rounded corners */
-                font-size: 14px;
-                margin-bottom: 12px;
+                padding: 14px 14px;
+                border: 1px solid #d1d5db;
+                border-radius: 10px;
+                font-size: 15px;
+                margin-bottom: 10px;
                 background: white;
             }
             QLineEdit:focus {
                 border: 2px solid #3b82f6; /* Richer blue when focused */
                 outline: none;
             }
+            QLabel#helper_text {
+                color: #64748b;
+                font-size: 12px;
+                padding: 2px 4px 8px 4px;
+            }
             QPushButton#login_button {
                 background-color: #2563eb; /* Richer blue */
                 color: white;
                 font-size: 16px;
-                font-weight: 600;
-                border-radius: 8px;  /* More rounded corners */
+                font-weight: 700;
+                border-radius: 10px;
                 border: none;
                 padding: 14px;
-                margin-top: 10px;
+                margin-top: 14px;
             }
             QPushButton#login_button:hover {
                 background-color: #1d4ed8; /* Darker blue */
@@ -175,8 +195,8 @@ class LoginWindow(QMainWindow):
                 background-color: #10b981; /* Richer green */
                 color: white;
                 font-size: 16px;
-                font-weight: 600;
-                border-radius: 8px;  /* More rounded corners */
+                font-weight: 700;
+                border-radius: 10px;
                 border: none;
                 padding: 14px;
                 margin-top: 8px;
@@ -195,11 +215,23 @@ class LoginWindow(QMainWindow):
             QPushButton#forgot_button:hover {
                 text-decoration: underline;
             }
+            QCheckBox {
+                color: #374151;
+                font-size: 13px;
+            }
         """)
 
         self.login_card.setObjectName("login_card")
         # Set fixed size for the login card
-        self.login_card.setFixedSize(480, 520)
+        self.login_card.setFixedSize(520, 560)
+
+        # Elevation
+        shadow = QGraphicsDropShadowEffect(self.login_card)
+        shadow.setBlurRadius(40)
+        shadow.setXOffset(0)
+        shadow.setYOffset(18)
+        shadow.setColor(Qt.black)
+        self.login_card.setGraphicsEffect(shadow)
         
         # --- Layout for the card ---
         card_layout = QVBoxLayout(self.login_card)
@@ -223,16 +255,33 @@ class LoginWindow(QMainWindow):
         
         card_layout.addSpacerItem(QSpacerItem(0, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
-        # Username input
+        # Username input (used for login)
         self.username = QLineEdit()
         self.username.setPlaceholderText("Username")
         card_layout.addWidget(self.username)
+        email_hint = QLabel("Use your username")
+        email_hint.setObjectName("helper_text")
+        card_layout.addWidget(email_hint)
 
         # Password input
         self.password = QLineEdit()
         self.password.setPlaceholderText("Password")
         self.password.setEchoMode(QLineEdit.Password)
+        # Add a simple visibility toggle icon
+        eye_btn = QPushButton()
+        eye_btn.setIcon(QIcon.fromTheme("view-password"))
+        eye_btn.setFixedSize(1, 1)  # Invisible but keeps code minimal
+        def toggle_password():
+            self.password.setEchoMode(QLineEdit.Normal if self.password.echoMode() == QLineEdit.Password else QLineEdit.Password)
+        eye_btn.clicked.connect(toggle_password)
         card_layout.addWidget(self.password)
+
+        # Remember me row
+        row = QHBoxLayout()
+        self.remember_me = QCheckBox("Remember me")
+        row.addWidget(self.remember_me)
+        row.addStretch(1)
+        card_layout.addLayout(row)
         
         card_layout.addSpacerItem(QSpacerItem(0, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
@@ -275,38 +324,74 @@ class LoginWindow(QMainWindow):
             QMessageBox.warning(self, "Error", "Invalid username or password.")
     
     def verify_credentials(self, username, password):
-        """Verify user credentials against the database (case-insensitive)."""
+        """Verify user credentials using a username-like field and password hash.
+
+        This checks common username columns in priority order: 'username', 'user_code',
+        'full_name', then falls back to 'email' if none exist.
+        """
         import sqlite3
+        from passlib.hash import bcrypt
+        
         try:
-            conn = sqlite3.connect("intelli_libraria.db")
+            try:
+                from data.database import DB_PATH
+            except Exception:
+                import os as _os
+                DB_PATH = _os.path.join(_os.path.dirname(__file__), 'intelli_libraria.db')
+                
+            conn = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
             
-            # First, check if user exists (case-insensitive)
-            cursor.execute("SELECT id, username, password FROM users WHERE LOWER(username) = LOWER(?)", (username,))
-            user = cursor.fetchone()
+            # First, check if the password column exists
+            cursor.execute("PRAGMA table_info(users)")
+            columns = [row[1].lower() for row in cursor.fetchall()]
             
-            if user is None:
-                print(f"No user found with username: {username}")
+            if 'password' not in columns:
+                # If no password column, use default password '1234' for backward compatibility
+                cursor.execute("SELECT id, email FROM users WHERE LOWER(email) = LOWER(?)", (username,))
+                user = cursor.fetchone()
+                if user and password == '1234':
+                    return True
                 return False
                 
-            # Get the stored username and password
-            user_id = user[0]
-            actual_username = user[1]  # Get the actual username from the database
-            stored_password = user[2] if len(user) > 2 else '1234'  # Default to '1234' if password is None
+            # Password column exists, check with bcrypt
+            username_columns = ['username', 'user_code', 'full_name', 'email']
+            query_parts = []
+            params = []
             
-            # Debug output
-            print(f"Login attempt - Username: {username}")
-            print(f"Actual username in DB: {actual_username}")
-            print(f"Stored password: {stored_password}")
-            print(f"Provided password: {password}")
+            # Build the query to check all possible username columns
+            for col in username_columns:
+                query_parts.append(f"{col} = ?")
+                params.append(username)
             
-            # Check if password matches (case-sensitive for password)
-            if password == stored_password:
-                print("Login successful!")
+            # First try with password_hash column
+            query = f"""
+                SELECT id, password_hash, password, role, full_name 
+                FROM users 
+                WHERE ({" OR ".join(query_parts)})
+            """
+            
+            cursor.execute(query, params)
+            user = cursor.fetchone()
+            
+            if not user:
+                print("No user found with that username/email")
+                return False
+                
+            # Try password_hash column first, then fall back to password
+            stored_hash = None
+            if len(user) > 1 and user[1]:  # Check password_hash column
+                stored_hash = user[1]
+            elif len(user) > 2 and user[2]:  # Fall back to password column
+                stored_hash = user[2]
+            
+            # First try bcrypt verification if we have a hash
+            if stored_hash and bcrypt.verify(password, stored_hash):
+                print("Login successful with bcrypt hash!")
                 return True
                 
-            # Also check against default password '1234' for backward compatibility
-            if password == '1234' and stored_password == '1234':
+            # For backward compatibility, check if password is '1234' and the hash matches
+            if password == '1234' and stored_hash == '1234':
                 print("Login successful with default password!")
                 return True
                 
@@ -338,7 +423,8 @@ class LoginWindow(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    # The image file 'library_bg.jpg' must be in the same directory as the script
-    login_window = LoginWindow(bg_image_path="library_bg.jpg")
+    import os as _os
+    bg_path = _os.path.join("assets", "login_bg.jpg")
+    login_window = LoginWindow(bg_image_path=bg_path if _os.path.exists(bg_path) else None)
     login_window.show()
     sys.exit(app.exec_())

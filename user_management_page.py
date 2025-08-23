@@ -101,8 +101,9 @@ class UserDialog(QDialog):
             self.inputs[label_text] = input_widget
 
         # Role and Status combo boxes
-        self.role_input = self.add_combo_box(form_layout, "Role", ["Admin", "Librarian", "Member"])
-        self.status_input = self.add_combo_box(form_layout, "Status", ["Active", "Inactive", "Suspended"])
+        # Restrict to valid DB values
+        self.role_input = self.add_combo_box(form_layout, "Role", ["Admin", "Member"]) 
+        self.status_input = self.add_combo_box(form_layout, "Status", ["Active", "Inactive"]) 
 
         form_layout.addStretch(1)
         

@@ -10,8 +10,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
 
-# Database file path
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'lms.db')
+# Database file path (single shared DB for the whole app)
+# Place the DB in the project root and name it 'intelli_libraria.db'
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'intelli_libraria.db')
 MIGRATIONS_DIR = os.path.join(os.path.dirname(__file__), 'migrations')
 
 # Custom row factory for namedtuple-like access
