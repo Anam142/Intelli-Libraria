@@ -30,9 +30,19 @@ INSERT OR IGNORE INTO transactions (book_id, user_id, issue_date, due_date, retu
 
 -- Insert sample reservations
 -- Using INSERT OR IGNORE to skip existing reservations
-INSERT OR IGNORE INTO reservations (book_id, user_id, reserved_at, status) VALUES
-(4, 5, '2025-08-10 10:30:00', 'Active'),
-(2, 3, '2025-07-25 14:15:00', 'Fulfilled');
+-- Only insert reservations for books that aren't currently borrowed by the same user
+INSERT OR IGNORE INTO reservations (book_id, user_id, reserved_at, status) 
+SELECT 4, 5, '2025-08-10 10:30:00', 'Active'
+WHERE NOT EXISTS (
+    SELECT 1 FROM transactions 
+    WHERE book_id = 4 AND user_id = 5 AND status = 'Issued'
+)
+UNION ALL
+SELECT 2, 3, '2025-07-25 14:15:00', 'Fulfilled'
+WHERE NOT EXISTS (
+    SELECT 1 FROM transactions 
+    WHERE book_id = 2 AND user_id = 3 AND status = 'Issued'
+);
 
 -- Insert sample fines
 -- Using INSERT OR IGNORE to skip existing fines
