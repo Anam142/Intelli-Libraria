@@ -324,78 +324,54 @@ class LoginWindow(QMainWindow):
             QMessageBox.warning(self, "Error", "Invalid username or password.")
     
     def verify_credentials(self, username, password):
-        """Verify user credentials using a username-like field and password hash.
-
-        This checks common username columns in priority order: 'username', 'user_code',
-        'full_name', then falls back to 'email' if none exist.
-        """
+        """Verify user credentials using username/email and password."""
         import sqlite3
         from passlib.hash import bcrypt
         
         try:
+            # Get database path
             try:
                 from data.database import DB_PATH
             except Exception:
                 import os as _os
                 DB_PATH = _os.path.join(_os.path.dirname(__file__), 'intelli_libraria.db')
-                
+
+            # Connect to database
             conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
-            # First, check if the password column exists
-            cursor.execute("PRAGMA table_info(users)")
-            columns = [row[1].lower() for row in cursor.fetchall()]
+            # Check if user exists with given username or email
+            cursor.execute("""
+                SELECT * FROM users 
+                WHERE (username = ? OR email = ?) AND status = 'Active'
+            """, (username, username))
             
-            if 'password' not in columns:
-                # If no password column, use default password '1234' for backward compatibility
-                cursor.execute("SELECT id, email FROM users WHERE LOWER(email) = LOWER(?)", (username,))
-                user = cursor.fetchone()
-                if user and password == '1234':
-                    return True
-                return False
-                
-            # Password column exists, check with bcrypt
-            username_columns = ['username', 'user_code', 'full_name', 'email']
-            query_parts = []
-            params = []
-            
-            # Build the query to check all possible username columns
-            for col in username_columns:
-                query_parts.append(f"{col} = ?")
-                params.append(username)
-            
-            # First try with password_hash column
-            query = f"""
-                SELECT id, password_hash, password, role, full_name 
-                FROM users 
-                WHERE ({" OR ".join(query_parts)})
-            """
-            
-            cursor.execute(query, params)
             user = cursor.fetchone()
             
             if not user:
-                print("No user found with that username/email")
+                print("No active user found with that username/email")
                 return False
                 
-            # Try password_hash column first, then fall back to password
-            stored_hash = None
-            if len(user) > 1 and user[1]:  # Check password_hash column
-                stored_hash = user[1]
-            elif len(user) > 2 and user[2]:  # Fall back to password column
-                stored_hash = user[2]
+            # Get password hash from the user record using dictionary access
+            password_hash = user['password_hash'] if 'password_hash' in user.keys() else (user['password'] if 'password' in user.keys() else None)
+        
+            # For development/testing - allow login with default password
+            if password == '1234' and (not password_hash or password_hash == '1234'):
+                print("Login successful with default password")
+                return True
             
-            # First try bcrypt verification if we have a hash
-            if stored_hash and bcrypt.verify(password, stored_hash):
-                print("Login successful with bcrypt hash!")
-                return True
-                
-            # For backward compatibility, check if password is '1234' and the hash matches
-            if password == '1234' and stored_hash == '1234':
-                print("Login successful with default password!")
-                return True
-                
-            print("Incorrect password")
+            # If we have a hash, verify it
+            if password_hash and password_hash != '1234':
+                try:
+                    if bcrypt.verify(password, password_hash):
+                        print("Login successful with hashed password")
+                        return True
+                except Exception as e:
+                    print(f"Error verifying password: {e}")
+                    return False
+                    
+            print("Invalid credentials")
             return False
             
         except sqlite3.Error as e:

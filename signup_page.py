@@ -61,6 +61,7 @@ class SignupForm(QWidget):
         
         # Input fields
         fields = [
+            ("full_name", "Full Name"),
             ("username", "Username"),
             ("email", "Email"),
             ("password", "Password (min 8 characters)", True),
@@ -162,12 +163,20 @@ class SignupForm(QWidget):
         back_to_login_btn.raise_()
     
     def handle_signup(self):
+        import sqlite3
+        import uuid
+        from datetime import datetime
+        from passlib.hash import bcrypt
+        
+        # Get form data
+        full_name = self.full_name_input.text().strip()
         username = self.username_input.text().strip()
         email = self.email_input.text().strip()
         password = self.password_input.text()
         phone = self.phone_input.text().strip()
         
-        if not all([username, email, password, phone]):
+        # Validate required fields
+        if not all([full_name, username, email, password, phone]):
             QMessageBox.warning(self, "Error", "All fields are required!")
             return
             
@@ -175,8 +184,44 @@ class SignupForm(QWidget):
             QMessageBox.warning(self, "Error", "Password must be at least 8 characters!")
             return
         
-        QMessageBox.information(self, "Success", "Account created successfully!")
-        self.handle_login()
+        try:
+            # Generate a unique user code (e.g., USR-{timestamp}-{random})
+            user_code = f"USR-{int(datetime.now().timestamp())}-{str(uuid.uuid4())[:6].upper()}"
+            
+            # Hash the password
+            password_hash = bcrypt.hash(password)
+            
+            # Get database path
+            try:
+                from data.database import DB_PATH
+            except Exception:
+                import os as _os
+                DB_PATH = _os.path.join(_os.path.dirname(__file__), 'intelli_libraria.db')
+            
+            # Connect to database and insert new user
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO users (user_code, username, full_name, email, phone, password_hash, role, status)
+                VALUES (?, ?, ?, ?, ?, ?, 'member', 'Active')
+            """, (user_code, username, full_name, email, phone, password_hash))
+            
+            conn.commit()
+            conn.close()
+            
+            QMessageBox.information(self, "Success", "Account created successfully!")
+            self.handle_login()
+            
+        except sqlite3.IntegrityError as e:
+            if "UNIQUE constraint failed: users.username" in str(e):
+                QMessageBox.warning(self, "Error", "Username already exists!")
+            elif "UNIQUE constraint failed: users.email" in str(e):
+                QMessageBox.warning(self, "Error", "Email already registered!")
+            else:
+                QMessageBox.critical(self, "Database Error", f"An error occurred: {str(e)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to create account: {str(e)}")
     
     def handle_login(self):
         if self.parent:

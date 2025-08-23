@@ -2,11 +2,13 @@
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_code TEXT UNIQUE NOT NULL,
+    username TEXT UNIQUE NOT NULL,
     full_name TEXT NOT NULL,
     email TEXT UNIQUE,
     phone TEXT,
-    role TEXT CHECK(role IN ('Admin','Member')) DEFAULT 'Member',
+    role TEXT CHECK(role IN ('admin','member')) DEFAULT 'member',
     status TEXT CHECK(status IN ('Active','Inactive')) DEFAULT 'Active',
+    password_hash TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
