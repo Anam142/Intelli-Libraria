@@ -4,7 +4,8 @@ from passlib.hash import bcrypt
 def verify_login():
     try:
         # Try to connect to the database
-        conn = sqlite3.connect('intelli_libraria.db')
+        from data.database import DB_PATH
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
         # Check if users table exists

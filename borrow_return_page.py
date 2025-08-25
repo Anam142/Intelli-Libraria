@@ -12,6 +12,7 @@ except Exception as _zbar_err:
     PYZBAR_AVAILABLE = False
     ZBAR_IMPORT_ERROR = _zbar_err
 import numpy as np
+import database
 
 class BorrowBookScreen(QWidget):
     def __init__(self):
@@ -412,12 +413,31 @@ class BorrowReturnPage(QWidget):
         book_grid.setVerticalSpacing(12)
         book_grid.setHorizontalSpacing(20)
         
+        # Attempt to show the most recently added book as an example
+        book_fields = []
+        try:
+            rows = database.execute_query(
+                "SELECT title, author, COALESCE(isbn,'') AS isbn, COALESCE(stock,0) AS stock FROM books ORDER BY id DESC LIMIT 1"
+            )
+            if rows:
+                r = rows[0]
+                status = "Available" if (r.get("stock", 0) or 0) > 0 else "Out of Stock"
+                book_fields = [
+                    ("Title:", r.get("title", "")),
+                    ("Author:", r.get("author", "")),
+                    ("ISBN:", r.get("isbn", "")),
+                    ("Status:", status),
+                    ("Due Date:", "N/A"),
+                ]
+        except Exception:
+            pass
+        if not book_fields:
         book_fields = [
-            ("Title:", "The Great Gatsby"),
-            ("Author:", "F. Scott Fitzgerald"),
-            ("ISBN:", "978-0743273565"),
-            ("Status:", "Available"),
-            ("Due Date:", "N/A")
+                ("Title:", ""),
+                ("Author:", ""),
+                ("ISBN:", ""),
+                ("Status:", ""),
+                ("Due Date:", "")
         ]
         
         for i, (label, value) in enumerate(book_fields):

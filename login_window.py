@@ -2,7 +2,7 @@ import sys
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QMessageBox, QSpacerItem, QSizePolicy, QStackedWidget,
-    QGraphicsDropShadowEffect, QCheckBox
+    QGraphicsDropShadowEffect, QCheckBox, QDialog
 )
 from PyQt5.QtGui import QPixmap, QFont, QPainter, QIcon
 from PyQt5.QtGui import QPixmap, QFont, QPainter
@@ -63,11 +63,11 @@ class LoginWindow(QMainWindow):
         # Get the screen geometry
         screen = QApplication.primaryScreen().availableGeometry()
         
-        # Set window size to 90% of screen size, but not smaller than minimum
-        min_width = 1200
-        min_height = 800
-        width = max(min_width, int(screen.width() * 0.9))
-        height = max(min_height, int(screen.height() * 0.9))
+        # Set window size to a reasonable size and allow resizing; don't oversize screen
+        min_width = 1000
+        min_height = 650
+        width = max(min_width, min(screen.width() - 80, int(screen.width() * 0.85)))
+        height = max(min_height, min(screen.height() - 80, int(screen.height() * 0.85)))
         
         # Center the window
         x = (screen.width() - width) // 2
@@ -97,21 +97,11 @@ class LoginWindow(QMainWindow):
         self.background = BackgroundWidget(bg_image_path, self)
         self.setCentralWidget(self.background)
         
-        # Create main layout for the background
+        # Create main layout for the background and center all content
         main_layout = QVBoxLayout(self.background)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
-        
-        # Add vertical stretch to push content to middle
-        main_layout.addStretch()
-        
-        # Create a horizontal container for the form
-        form_container = QWidget()
-        h_layout = QHBoxLayout(form_container)
-        h_layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Add horizontal stretches to center the form
-        h_layout.addStretch()
+        main_layout.setAlignment(Qt.AlignCenter)
         
         # Create the stacked widget for login/signup
         self.stacked_widget = QStackedWidget()
@@ -120,16 +110,11 @@ class LoginWindow(QMainWindow):
         self.login_card = QWidget()
         self.setup_login_card()
         self.stacked_widget.addWidget(self.login_card)
-        
-        # Add stacked widget to horizontal layout
-        h_layout.addWidget(self.stacked_widget)
-        h_layout.addStretch()
-        
-        # Add form container to main layout
-        main_layout.addWidget(form_container)
-        
-        # Add bottom vertical stretch
-        main_layout.addStretch()
+        # Let the stacked widget size itself to the card and allow the layout to center it
+        self.stacked_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+
+        # Add stacked widget directly to the main layout centered
+        main_layout.addWidget(self.stacked_widget, 0, Qt.AlignHCenter | Qt.AlignVCenter)
         
         # Create the signup page
         self.signup_page = SignupPage(self)
@@ -303,6 +288,7 @@ class LoginWindow(QMainWindow):
         self.forgot_button = QPushButton("Forgot Password?")
         self.forgot_button.setObjectName("forgot_button")
         self.forgot_button.setCursor(Qt.PointingHandCursor)
+        self.forgot_button.clicked.connect(self.open_forgot_password_dialog)
         card_layout.addWidget(self.forgot_button, alignment=Qt.AlignCenter)
         
         # Removed the extra stretch that was adding space at the bottom
@@ -396,6 +382,33 @@ class LoginWindow(QMainWindow):
         size = self.geometry()
         self.move(int((screen.width() - size.width()) / 2),
                   int((screen.height() - size.height()) / 2))
+
+    def open_forgot_password_dialog(self):
+        """Open a simple dialog to start the password reset flow."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Reset Password")
+        dialog.setModal(True)
+        layout = QVBoxLayout(dialog)
+        info = QLabel("Enter your email or username. We'll send reset instructions if available.")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        input_field = QLineEdit()
+        input_field.setPlaceholderText("Email or Username")
+        layout.addWidget(input_field)
+        btn_row = QHBoxLayout()
+        cancel_btn = QPushButton("Cancel")
+        submit_btn = QPushButton("Send Link")
+        btn_row.addStretch(1)
+        btn_row.addWidget(cancel_btn)
+        btn_row.addWidget(submit_btn)
+        layout.addLayout(btn_row)
+
+        def on_submit():
+            QMessageBox.information(self, "Password Reset", "If the account exists, reset instructions have been sent.")
+            dialog.accept()
+        submit_btn.clicked.connect(on_submit)
+        cancel_btn.clicked.connect(dialog.reject)
+        dialog.exec_()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

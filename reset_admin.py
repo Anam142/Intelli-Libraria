@@ -6,7 +6,7 @@ def reset_admin_password():
         from library_backend import LibraryBackend
         
         # Initialize the library
-        lib = LibraryBackend('intelli_libraria.db')
+        lib = LibraryBackend()
         
         # Hash the new password
         new_password = 'admin123'

@@ -14,8 +14,13 @@ class UserRole(str, Enum):
     MEMBER = 'member'
 
 class LibraryBackend:
-    def __init__(self, db_path='intelli_libraria.db'):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        # Always use centralized DB path
+        if db_path is None:
+            from data.database import DB_PATH
+            self.db_path = DB_PATH
+        else:
+            self.db_path = db_path
         self._init_db()
     
     def _get_connection(self):

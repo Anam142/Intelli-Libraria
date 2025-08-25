@@ -227,7 +227,8 @@ class Sidebar(QWidget):
         # Connect the click event with debug prints
         def on_logout_clicked():
             print("Logout button clicked!")  # Debug
-            self.show_logout_confirmation()
+            # Always show the custom logout confirmation dialog
+                self.show_logout_confirmation()
             
         self.logout_btn.clicked.connect(on_logout_clicked)
         print(f"Logout button connected: {self.logout_btn.signalsBlocked()}")  # Debug
@@ -240,9 +241,8 @@ class Sidebar(QWidget):
 
     def show_user_menu(self):
         # Show the user menu below the logout button
-        self.user_menu.exec_(self.logout_btn.mapToGlobal(
-            self.logout_btn.rect().bottomLeft()
-        ))
+        # Ensure the dialog is shown directly (avoid hidden menu issues)
+        self.show_logout_confirmation()
         
         # Alternatively, you can directly show the logout confirmation
         # by uncommenting the line below and removing the menu code above
@@ -280,10 +280,24 @@ class Sidebar(QWidget):
                 print("8. User cancelled logout")  # Debug
                 
         except Exception as e:
-            print(f"ERROR in show_logout_confirmation: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            self.logout_btn.setChecked(False)  # Ensure button is unchecked on error
+            # Fallback: use QMessageBox question if the custom dialog fails for any reason
+            try:
+                from PyQt5.QtWidgets import QMessageBox
+                print(f"ERROR in show_logout_confirmation: {str(e)}")
+                reply = QMessageBox.question(
+                    self,
+                    'Logout',
+                    'Are you sure you want to logout?',
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                self.logout_btn.setChecked(False)
+                if reply == QMessageBox.Yes:
+                    self.logout_requested.emit()
+            except Exception as _:
+                import traceback
+                traceback.print_exc()
+                self.logout_btn.setChecked(False)  # Ensure button is unchecked on error
 
     def select_button(self, selected_btn):
         # Only allow one button to be active at a time
@@ -433,10 +447,38 @@ class DashboardWindow(QMainWindow):
         cards_layout.setContentsMargins(4, 0, 4, 0)  
         cards_layout.setSpacing(6)  
         
-        cards_layout.addWidget(StatCard("Total Books", 1250), 1)
-        cards_layout.addWidget(StatCard("Members", 340), 1)
-        cards_layout.addWidget(StatCard("Books Borrowed", 180), 1)
-        cards_layout.addWidget(StatCard("Overdue Books", 15), 1)
+        # Total Books from database
+        try:
+            import database
+            total_books = database.get_books_count()
+        except Exception:
+            total_books = 0
+        self.total_books_card = StatCard("Total Books", total_books)
+        cards_layout.addWidget(self.total_books_card, 1)
+
+        # Live Members
+        try:
+            members_count = database.get_members_count()
+        except Exception:
+            members_count = 0
+        self.members_card = StatCard("Members", members_count)
+        cards_layout.addWidget(self.members_card, 1)
+
+        # Live Borrowed
+        try:
+            borrowed_count = database.get_borrowed_count()
+        except Exception:
+            borrowed_count = 0
+        self.borrowed_card = StatCard("Books Borrowed", borrowed_count)
+        cards_layout.addWidget(self.borrowed_card, 1)
+
+        # Live Overdue
+        try:
+            overdue_count = database.get_overdue_count()
+        except Exception:
+            overdue_count = 0
+        self.overdue_card = StatCard("Overdue Books", overdue_count)
+        cards_layout.addWidget(self.overdue_card, 1)
         
         dashboard_layout.addWidget(cards_container)
 
@@ -511,6 +553,31 @@ class DashboardWindow(QMainWindow):
         return scroll
 
     def show_dashboard(self):
+        self.refresh_total_books()
+        # Refresh other KPIs as well
+        try:
+            import database
+            # Total books
+            tb = database.get_books_count()
+            tb_label = self.total_books_card.findChildren(QLabel)[1]
+            tb_label.setText(str(tb))
+
+            # Members
+            mb = database.get_members_count()
+            mb_label = self.members_card.findChildren(QLabel)[1]
+            mb_label.setText(str(mb))
+
+            # Borrowed
+            br = database.get_borrowed_count()
+            br_label = self.borrowed_card.findChildren(QLabel)[1]
+            br_label.setText(str(br))
+
+            # Overdue
+            od = database.get_overdue_count()
+            od_label = self.overdue_card.findChildren(QLabel)[1]
+            od_label.setText(str(od))
+        except Exception:
+            pass
         self.pages_stack.setCurrentWidget(self.dashboard_content)
 
     def show_user_management(self):
@@ -520,11 +587,22 @@ class DashboardWindow(QMainWindow):
     def show_add_user_page(self):
         self.pages_stack.setCurrentWidget(self.add_user_page)
 
+    def refresh_total_books(self):
+        try:
+            import database
+            count = database.get_books_count()
+            # Update the displayed value on the StatCard
+            value_label = self.total_books_card.findChildren(QLabel)[1]
+            value_label.setText(str(count))
+        except Exception as e:
+            print(f"Failed to refresh total books: {e}")
+
     def show_book_inventory(self):
         # Load books when navigating to the page to ensure fresh data and avoid early popups
         try:
             if hasattr(self.book_inventory_page, 'load_books'):
                 self.book_inventory_page.load_books()
+                self.refresh_total_books()
         except Exception as e:
             print(f"Error loading books on navigation: {e}")
         self.pages_stack.setCurrentWidget(self.book_inventory_page)

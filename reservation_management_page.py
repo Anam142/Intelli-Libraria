@@ -120,10 +120,14 @@ class CreateReservationScreen(QWidget):
 
     def populate_books_dropdown(self):
         self.book_search_input.addItem("Select a Book", -1)
-        books = database.get_all_books()
-        if books:
-            for book in books:
-                self.book_search_input.addItem(book[1], book[0]) # Display title, store ID
+        # Use live book titles and IDs from the database; ensure dropdown is enabled
+        try:
+            books = database.get_all_books()
+            if books:
+                for book in books:
+                    self.book_search_input.addItem(book[1], book[0]) # Display title, store ID
+        except Exception:
+            pass
 
     def create_reservation_action(self):
         user_id_text = self.user_id_input.text().strip()
@@ -146,7 +150,7 @@ class CreateReservationScreen(QWidget):
             self.reservation_added.emit()
             self.close()
         else:
-            QMessageBox.warning(self, "Database Error", "Failed to create reservation. Check if the User ID is valid.")
+            QMessageBox.warning(self, "Database Error", "Failed to create reservation. Please verify User ID and Book selection.")
 
 class ReservationManagementPage(QWidget):
     def __init__(self):

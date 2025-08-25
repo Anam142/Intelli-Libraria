@@ -101,7 +101,15 @@ class SignupForm(QWidget):
         """)
         signup_btn.clicked.connect(self.handle_signup)
         
-        # Login link removed as requested
+        # Back to Login link below the Sign Up button
+        back_btn = QPushButton("Back to Login")
+        back_btn.setCursor(Qt.PointingHandCursor)
+        back_btn.setFlat(True)
+        back_btn.setStyleSheet(
+            "QPushButton { color: #2563eb; background: transparent; border: none; font-size: 13px; }"
+            "QPushButton:hover { text-decoration: underline; }"
+        )
+        back_btn.clicked.connect(self.handle_login)
         
         # Add widgets to layout
         layout.addWidget(title)
@@ -111,6 +119,7 @@ class SignupForm(QWidget):
         layout.addWidget(self.password_input)
         layout.addWidget(self.phone_input)
         layout.addWidget(signup_btn)
+        layout.addWidget(back_btn, 0, Qt.AlignCenter)
         layout.addStretch()
     
     def handle_signup(self):
@@ -133,7 +142,12 @@ class SignupForm(QWidget):
             self.handle_login()
     
     def add_user_to_database(self, username, email, password, phone):
-        """Add a new user to the database."""
+        """Add a new user to the database.
+
+        This implementation is schema-aware: it inspects the existing
+        `users` table and dynamically includes columns such as
+        `user_code`, `password_hash`, `role`, and `status` when present.
+        """
         print(f"Attempting to add user: {username}, {email}")
         # Use centralized DB path
         try:
@@ -159,12 +173,80 @@ class SignupForm(QWidget):
                 QMessageBox.warning(self, "Error", "Username or email already exists!")
                 return False
                 
-            # Insert new user
-            print(f"Inserting new user: {username}, {email}")
-            cursor.execute("""
-                INSERT INTO users (username, email, password, phone, role, status)
-                VALUES (?, ?, ?, ?, 'user', 'active')
-            """, (username, email, password, phone))
+            # Discover users table columns
+            cursor.execute("PRAGMA table_info(users)")
+            user_columns = {row[1] for row in cursor.fetchall()}
+
+            # Generate a user code if supported
+            import uuid as _uuid
+            user_code = f"USR-{str(_uuid.uuid4())[:8].upper()}"
+
+            # Hash password if a password_hash column exists
+            hashed = None
+            if 'password_hash' in user_columns:
+                try:
+                    from auth_utils import get_password_hash
+                    hashed = get_password_hash(password)
+                except Exception:
+                    hashed = password
+
+            # Determine allowed role/status values if checks exist
+            allowed_roles = None
+            allowed_statuses = None
+            try:
+                cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'")
+                row = cursor.fetchone()
+                ddl = row[0] if row and row[0] else ''
+                import re as _re
+                rm = _re.search(r"role\s+TEXT\s+CHECK\(\s*role\s+IN\s*\(([^\)]*)\)\)", ddl, _re.IGNORECASE)
+                sm = _re.search(r"status\s+TEXT\s+CHECK\(\s*status\s+IN\s*\(([^\)]*)\)\)", ddl, _re.IGNORECASE)
+                if rm:
+                    allowed_roles = [v.strip().strip("'\"") for v in rm.group(1).split(',')]
+                if sm:
+                    allowed_statuses = [v.strip().strip("'\"") for v in sm.group(1).split(',')]
+            except Exception:
+                pass
+
+            # Choose defaults compatible with the schema
+            role_value = 'member'
+            status_value = 'Active'
+            if allowed_roles:
+                role_value = next((r for r in allowed_roles if r.lower() == 'member'), allowed_roles[0])
+            if allowed_statuses:
+                # Prefer Active if present, else first allowed
+                status_value = next((s for s in allowed_statuses if s.lower() == 'active'), allowed_statuses[0])
+
+            # Build INSERT dynamically
+            fields = []
+            values = []
+            def add(col, val):
+                fields.append(col)
+                values.append(val)
+
+            if 'user_code' in user_columns:
+                add('user_code', user_code)
+            if 'username' in user_columns:
+                add('username', username)
+            if 'full_name' in user_columns and 'full_name' not in fields:
+                # fallback: use username as full_name if required
+                add('full_name', username)
+            if 'email' in user_columns:
+                add('email', email)
+            if 'phone' in user_columns:
+                add('phone', phone)
+            if 'password_hash' in user_columns:
+                add('password_hash', hashed or password)
+            elif 'password' in user_columns:
+                add('password', password)
+            if 'role' in user_columns:
+                add('role', role_value)
+            if 'status' in user_columns:
+                add('status', status_value)
+
+            placeholders = ', '.join(['?'] * len(fields))
+            sql = f"INSERT INTO users ({', '.join(fields)}) VALUES ({placeholders})"
+            print(f"Inserting new user with fields: {fields}")
+            cursor.execute(sql, tuple(values))
             conn.commit()
             print("User added successfully!")
             
@@ -186,7 +268,8 @@ class SignupForm(QWidget):
     
     def handle_login(self):
         if self.parent:
-            self.parent.show_login_page()
+            # Delegate to the containing SignupPage, which routes back to LoginWindow
+            self.parent.show_login()
 
 class SignupPage(QMainWindow):
     def __init__(self, parent=None):
@@ -257,7 +340,13 @@ class SignupPage(QMainWindow):
     
     def show_login(self):
         if self.parent:
+            # Call back into the login window to show the login form
+            try:
+                if hasattr(self.parent, 'show_login_page'):
+                    self.parent.show_login_page()
+                elif hasattr(self.parent, 'show_login'):
             self.parent.show_login()
+            finally:
             self.close()
 
 def main():

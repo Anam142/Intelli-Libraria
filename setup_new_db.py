@@ -4,11 +4,11 @@ import os
 def create_database():
     try:
         # Remove existing database if it exists
-        if os.path.exists('intelli_libraria.db'):
-            os.remove('intelli_libraria.db')
+        # Use centralized DB path only; do not remove automatically
+        from data.database import DB_PATH
             
         # Create new database
-        conn = sqlite3.connect('intelli_libraria.db')
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
         # Create users table with required fields

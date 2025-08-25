@@ -127,7 +127,7 @@ class LogoutConfirmationDialog(QDialog):
         layout.addStretch(1)
         layout.addLayout(button_container)
         
-        # Center the dialog on the screen
+        # Center the dialog initially
         self.center_on_screen()
         
         # Debug
@@ -143,3 +143,24 @@ class LogoutConfirmationDialog(QDialog):
         
         super().showEvent(event)
         print("Logout dialog shown")
+
+    def center_on_screen(self):
+        """Center the dialog on its parent if available; otherwise center on screen."""
+        try:
+            if self.parent() and isinstance(self.parent(), QWidget):
+                parent_geom = self.parent().frameGeometry()
+                center_point = parent_geom.center()
+            else:
+                screen = QDesktopWidget().screenNumber(QDesktopWidget().cursor().pos())
+                center_point = QDesktopWidget().screenGeometry(screen).center()
+
+            frame_geom = self.frameGeometry()
+            frame_geom.moveCenter(center_point)
+            self.move(frame_geom.topLeft())
+            # Bring to front
+            self.setWindowModality(Qt.ApplicationModal)
+            self.raise_()
+            self.activateWindow()
+        except Exception:
+            # Fallback to default move
+            self.move(200, 150)
