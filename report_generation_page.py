@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
+import database
 
 class ReportGenerationPage(QWidget):
     def __init__(self, parent=None):
@@ -226,14 +227,14 @@ class ReportGenerationPage(QWidget):
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["Title", "Author", "ISBN", "Available", "Total"])
         
-        # Sample data - in a real app, this would come from your database
-        data = [
-            ("The Great Adventure", "Alex Turner", "978-0321765723", "15", "20"),
-            ("Mystery of the Hidden Key", "Olivia Bennett", "978-0451419439", "8", "10"),
-            ("Journey Through Time", "Ethan Carter", "978-0060558123", "12", "15"),
-            ("Secrets of the Ancient World", "Sophia Davis", "978-0385534208", "5", "5"),
-            ("Echoes of the Past", "Liam Foster", "978-0316037842", "20", "25"),
-        ]
+        # Live data from database
+        try:
+            rows = database.execute_query(
+                "SELECT title, author, COALESCE(isbn,'') AS isbn, COALESCE(stock,0) AS stock FROM books ORDER BY title"
+            )
+            data = [(r["title"], r["author"], r["isbn"], str(r["stock"]), str(r["stock"])) for r in rows]
+        except Exception:
+            data = []
         
         self._populate_table(data)
     
@@ -242,17 +243,37 @@ class ReportGenerationPage(QWidget):
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(["Title", "Borrower", "Borrow Date", "Due Date", "Days Left", "Status"])
         
-        # Sample data
-        from datetime import date, timedelta
+        # Try to load from transactions if available
+        data = []
+        try:
+            # Check if transactions exists
+            rows = database.execute_query(
+                """
+                SELECT b.title AS title,
+                       u.full_name AS borrower,
+                       t.issue_date AS borrow_date,
+                       t.due_date AS due_date,
+                       t.status AS status
+                FROM transactions t
+                JOIN books b ON b.id = t.book_id
+                JOIN users u ON u.id = t.user_id
+                WHERE LOWER(t.status) IN ('issued','borrowed')
+                ORDER BY t.issue_date DESC
+                """
+            )
+            from datetime import date
         today = date.today()
-        data = [
-            ("The Great Adventure", "John Doe", (today - timedelta(days=5)).strftime("%Y-%m-%d"), 
-             (today + timedelta(days=2)).strftime("%Y-%m-%d"), "2", "Active"),
-            ("Mystery of the Hidden Key", "Jane Smith", (today - timedelta(days=10)).strftime("%Y-%m-%d"),
-             today.strftime("%Y-%m-%d"), "0", "Due Today"),
-            ("Journey Through Time", "Bob Johnson", (today - timedelta(days=3)).strftime("%Y-%m-%d"),
-             (today + timedelta(days=4)).strftime("%Y-%m-%d"), "4", "Active"),
-        ]
+            for r in rows:
+                due = r.get("due_date") or ""
+                # Days left calculation best-effort
+                try:
+                    from datetime import datetime
+                    days_left = (datetime.strptime(due, "%Y-%m-%d").date() - today).days
+                except Exception:
+                    days_left = ""
+                data.append((r["title"], r.get("borrower", ""), r.get("borrow_date", ""), due, str(days_left), r.get("status", "")))
+        except Exception:
+            data = []
         
         self._populate_table(data)
     
@@ -261,15 +282,31 @@ class ReportGenerationPage(QWidget):
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["Title", "Borrower", "Due Date", "Days Overdue", "Fine"])
         
-        # Sample data
-        from datetime import date, timedelta
+        data = []
+        try:
+            rows = database.execute_query(
+                """
+                SELECT b.title AS title,
+                       u.full_name AS borrower,
+                       t.due_date AS due_date
+                FROM transactions t
+                JOIN books b ON b.id = t.book_id
+                JOIN users u ON u.id = t.user_id
+                WHERE LOWER(t.status) = 'overdue'
+                ORDER BY t.due_date DESC
+                """
+            )
+            from datetime import date, datetime
         today = date.today()
-        data = [
-            ("Secrets of the Ancient World", "Alice Brown", 
-             (today - timedelta(days=5)).strftime("%Y-%m-%d"), "5", "$2.50"),
-            ("Echoes of the Past", "Charlie Wilson", 
-             (today - timedelta(days=2)).strftime("%Y-%m-%d"), "2", "$1.00"),
-        ]
+            for r in rows:
+                due = r.get("due_date") or ""
+                try:
+                    days_over = (today - datetime.strptime(due, "%Y-%m-%d").date()).days
+                except Exception:
+                    days_over = ""
+                data.append((r["title"], r.get("borrower", ""), due, str(days_over), ""))
+        except Exception:
+            data = []
         
         self._populate_table(data)
     

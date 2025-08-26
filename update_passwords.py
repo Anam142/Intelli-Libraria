@@ -8,7 +8,7 @@ from auth_utils import get_password_hash
 
 def update_user_passwords():
     """Update all plain text passwords in the users table to hashed versions."""
-    db_path = 'intelli_libraria.db'
+    from data.database import DB_PATH as db_path
     updated_count = 0
     
     try:

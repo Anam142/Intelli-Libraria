@@ -4,12 +4,12 @@ import sqlite3
 def reset_database():
     try:
         # Remove existing database if it exists
-        if os.path.exists('intelli_libraria.db'):
-            os.remove('intelli_libraria.db')
+        # Do not delete automatically; operate only on centralized DB path
+        from data.database import DB_PATH
             print("Removed existing database")
         
         # Create new database
-        conn = sqlite3.connect('intelli_libraria.db')
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
         # Create users table

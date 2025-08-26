@@ -7,7 +7,7 @@ import time
 import sqlite3
 
 def reset_database():
-    db_path = 'intelli_libraria.db'
+    from data.database import DB_PATH as db_path
     
     # Try to remove the database file if it exists
     try:

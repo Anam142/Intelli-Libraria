@@ -4,7 +4,7 @@ import sqlite3
 def setup_fresh_db():
     try:
         # Remove existing database if it exists
-        db_path = 'intelli_libraria.db'
+        from data.database import DB_PATH as db_path
         if os.path.exists(db_path):
             os.remove(db_path)
             print("Removed existing database")

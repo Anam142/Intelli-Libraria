@@ -4,7 +4,7 @@ from pathlib import Path
 
 def reset_database():
     # Remove existing database files
-    db_files = ['library.db', 'intelli_libraria.db', 'data/intelli_libraria.db']
+    db_files = ['intelli_libraria.db', 'data/intelli_libraria.db']
     for db_file in db_files:
         if os.path.exists(db_file):
             try:
@@ -19,7 +19,7 @@ def apply_migrations():
     migration_files = sorted([f for f in migration_dir.glob('*.sql')])
     
     # Connect to the database
-    conn = sqlite3.connect('library.db')
+    conn = sqlite3.connect('intelli_libraria.db')
     cursor = conn.cursor()
     
     try:

@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushBut
                             QGraphicsDropShadowEffect, QSpacerItem, QComboBox, QStyledItemDelegate, 
                             QApplication, QStackedWidget, QGridLayout, QSizeGrip, QTabWidget, 
                             QTextEdit, QSpinBox, QDialogButtonBox, QStyle)
-from PyQt5.QtCore import Qt, pyqtSignal, QSize, QMargins, QRect, QPoint
+from PyQt5.QtCore import Qt, pyqtSignal, QSize, QMargins, QRect, QPoint, QTimer
 from PyQt5.QtGui import QFont, QColor, QIntValidator, QPainter, QPalette, QPixmap, QFontDatabase
 import database
 import sys
@@ -82,7 +82,15 @@ class BookInventoryPage(QWidget):
     def __init__(self):
         super().__init__()
         self.setup_ui()
-        # Do not load books on initialization to avoid popups before the page is shown
+        # Load books after the widget is constructed (next event loop cycle)
+        QTimer.singleShot(0, self.load_books)
+
+    def showEvent(self, event):
+        """Ensure books are refreshed whenever the page becomes visible."""
+        try:
+            self.load_books()
+        finally:
+            return super().showEvent(event)
         
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -187,14 +195,9 @@ class BookInventoryPage(QWidget):
         self.books_table.setColumnCount(7)
         self.books_table.setHorizontalHeaderLabels(["ID", "Title", "Author", "ISBN", "Edition", "Stock", "Actions"])
         
-        # Set column widths
-        self.books_table.setColumnWidth(0, 50)  # ID
-        self.books_table.setColumnWidth(1, 200)  # Title
-        self.books_table.setColumnWidth(2, 150)  # Author
-        self.books_table.setColumnWidth(3, 150)  # ISBN
-        self.books_table.setColumnWidth(4, 100)  # Edition
-        self.books_table.setColumnWidth(5, 80)   # Stock
-        self.books_table.setColumnWidth(6, 140)  # Actions
+        # Prefer stretch-based sizing to keep full width during interactions
+        self.books_table.setColumnWidth(0, 70)   # Give small sensible defaults
+        self.books_table.setColumnWidth(6, 160)  # Actions slightly wider
         self.books_table.horizontalHeader().setStretchLastSection(True)
         self.books_table.verticalHeader().setVisible(False)
         self.books_table.setShowGrid(False)
@@ -234,9 +237,8 @@ class BookInventoryPage(QWidget):
         # Set header properties
         header = self.books_table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignCenter)
-        header.setStretchLastSection(False)
-        
-        # Set all columns to have equal width
+        header.setStretchLastSection(True)
+        # Set all columns to stretch to table width
         header.setSectionResizeMode(QHeaderView.Stretch)
         
         # Set fixed row height
@@ -316,6 +318,13 @@ class BookInventoryPage(QWidget):
                 ):
                     QMessageBox.information(self, "Success", "Book added successfully!")
                     self.load_books()
+                    # Notify dashboard to refresh total book count if available
+                    try:
+                        main = self.window()
+                        if hasattr(main, 'refresh_total_books'):
+                            main.refresh_total_books()
+                    except Exception:
+                        pass
                 else:
                     QMessageBox.warning(self, "Database Error", "Failed to add book. The ISBN might already be in use.")
             except Exception as e:
@@ -353,22 +362,41 @@ class BookInventoryPage(QWidget):
             
             # Set row count
             self.books_table.setRowCount(len(books))
-            
-            # Populate table
+
+            # Avoid layout glitches while inserting (sorting moves rows during setItem)
+            prev_sorting = self.books_table.isSortingEnabled()
+            self.books_table.setSortingEnabled(False)
+
+            # Populate table (supports tuple rows and dict rows)
             for row, book in enumerate(books):
                 try:
+                    # Normalize row to fields
+                    if isinstance(book, dict):
+                        bid = book.get('id')
+                        title_val = book.get('title', '') or ''
+                        author_val = book.get('author', '') or ''
+                        isbn_val = book.get('isbn', '') or ''
+                        edition_val = book.get('edition') if 'edition' in book else book.get('publication_year')
+                        stock_val = book.get('stock') if 'stock' in book else book.get('quantity', 0)
+                    else:
+                        # Assume positional tuple: id, title, author, isbn, edition, stock, ...
+                        bid = book[0] if len(book) > 0 else ''
+                        title_val = book[1] if len(book) > 1 else ''
+                        author_val = book[2] if len(book) > 2 else ''
+                        isbn_val = book[3] if len(book) > 3 else ''
+                        edition_val = book[4] if len(book) > 4 else None
+                        stock_val = book[5] if len(book) > 5 else 0
+
+                    edition_val = edition_val if edition_val is not None else 'N/A'
+                    stock_val = stock_val if stock_val is not None else 0
+
                     # Create items for each column
-                    id_item = QTableWidgetItem(str(book[0]))  # id
-                    title_item = QTableWidgetItem(book[1])     # title
-                    author_item = QTableWidgetItem(book[2])    # author
-                    isbn_item = QTableWidgetItem(book[3])      # isbn
-                    
-                    # Handle edition (which might not exist in the database)
-                    edition = book[4] if len(book) > 4 and book[4] is not None else 'N/A'
-                    edition_item = QTableWidgetItem(str(edition))
-                    
-                    stock = book[5] if len(book) > 5 and book[5] is not None else 0
-                    stock_item = QTableWidgetItem(str(stock))
+                    id_item = QTableWidgetItem(str(bid))
+                    title_item = QTableWidgetItem(str(title_val))
+                    author_item = QTableWidgetItem(str(author_val))
+                    isbn_item = QTableWidgetItem(str(isbn_val))
+                    edition_item = QTableWidgetItem(str(edition_val))
+                    stock_item = QTableWidgetItem(str(stock_val))
                     
                     # Set items in the table
                     self.books_table.setItem(row, 0, id_item)
@@ -380,7 +408,7 @@ class BookInventoryPage(QWidget):
                     
                     # Add action buttons
                     action_widget = QWidget()
-                    action_layout = QHBoxLayout()
+                    action_layout = QHBoxLayout(action_widget)
                     action_layout.setContentsMargins(5, 2, 5, 2)
                     action_layout.setSpacing(5)
                     
@@ -399,7 +427,7 @@ class BookInventoryPage(QWidget):
                             background-color: #45a049;
                         }
                     """)
-                    edit_btn.clicked.connect(lambda _, bid=book[0]: self.edit_book(bid))
+                    edit_btn.clicked.connect(lambda _, bid=bid: self.edit_book(bid))
                     
                     # Delete button
                     delete_btn = QPushButton("Delete")
@@ -416,7 +444,7 @@ class BookInventoryPage(QWidget):
                             background-color: #d32f2f;
                         }
                     """)
-                    delete_btn.clicked.connect(lambda _, bid=book[0]: self.delete_book(bid))
+                    delete_btn.clicked.connect(lambda _, bid=bid: self.delete_book(bid))
                     
                     action_layout.addWidget(edit_btn)
                     action_layout.addWidget(delete_btn)
@@ -432,8 +460,9 @@ class BookInventoryPage(QWidget):
                 except Exception as e:
                     print(f"Error processing book {book}: {str(e)}")
             
-            # Resize columns to contents
-            self.books_table.resizeColumnsToContents()
+            # Restore sorting and re-apply stretch so the table keeps full width
+            self.books_table.setSortingEnabled(prev_sorting)
+            self.books_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load books: {str(e)}")

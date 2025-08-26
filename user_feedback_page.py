@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
     QStyle, QSizePolicy, QStyleOptionSlider
 )
 from PyQt5.QtCore import Qt
+import database
 
 class UserFeedbackPage(QWidget):
     def __init__(self):
@@ -361,8 +362,13 @@ class UserFeedbackPage(QWidget):
         # Ensure the table is visible
         self.feedback_table.show()
         
-        # Add sample data
-        self.load_sample_data()
+        # Load from database books to show context in feedback table header
+        try:
+            rows = database.execute_query("SELECT COUNT(*) as n FROM books")
+            n = rows[0]["n"] if rows else 0
+            table_label.setText(f"Feedback History • {n} book(s) in catalog")
+        except Exception:
+            pass
 
     def load_sample_data(self):
         """Load sample feedback data into the table"""

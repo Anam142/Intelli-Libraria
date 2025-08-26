@@ -2,7 +2,7 @@ import sqlite3
 import os
 
 def check_database():
-    db_path = 'intelli_libraria.db'
+    from data.database import DB_PATH as db_path
     
     # Check if database file exists
     if not os.path.exists(db_path):
