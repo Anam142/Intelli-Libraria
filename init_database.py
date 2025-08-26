@@ -50,7 +50,6 @@ def init_database():
             
             # Execute the migration
             cursor.executescript(sql)
-            
             # Record the migration
             cursor.execute("INSERT OR IGNORE INTO migrations (name) VALUES (?)", (migration_file,))
             conn.commit()

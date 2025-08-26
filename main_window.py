@@ -1,8 +1,10 @@
 import sys
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                            QHBoxLayout, QPushButton, QLabel, QFrame, QStackedWidget)
+                            QHBoxLayout, QPushButton, QLabel, QFrame, QStackedWidget,
+                            QDialog)
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QFont, QIcon, QPixmap
+from logout_dialog import LogoutConfirmationDialog
 
 class SidebarButton(QPushButton):
     def __init__(self, icon_path, text, parent=None):
@@ -89,6 +91,32 @@ class MainWindow(QMainWindow):
         self.add_example_pages()
         
         main_layout.addWidget(self.content_area, 1)  # 1 is stretch factor
+        
+    def handle_logout(self):
+        """Handle the logout button click event."""
+        print("\n=== Logout button clicked ===")
+        try:
+            print("Creating logout dialog...")
+            dialog = LogoutConfirmationDialog(self)
+            print("Setting dialog properties...")
+            dialog.setWindowModality(Qt.ApplicationModal)
+            dialog.setAttribute(Qt.WA_DeleteOnClose)
+            
+            # Show the dialog explicitly
+            print("Showing dialog...")
+            result = dialog.exec_()
+            print(f"Dialog closed with result: {result}")
+            
+            if result == QDialog.Accepted:
+                print("Logout confirmed - closing application")
+                self.close()
+            else:
+                print("Logout cancelled")
+                
+        except Exception as e:
+            print(f"ERROR in handle_logout: {str(e)}")
+            import traceback
+            traceback.print_exc()
     
     def create_sidebar(self):
         sidebar = QFrame()
@@ -199,18 +227,18 @@ class MainWindow(QMainWindow):
         user_info_layout.addLayout(user_info)
         user_info_layout.addStretch()
         
-        # Logout button
-        logout_btn = QPushButton("🚪")
-        logout_btn.setToolTip("Logout")
-        logout_btn.setFixedSize(36, 36)
-        logout_btn.setCursor(Qt.PointingHandCursor)
-        logout_btn.setStyleSheet("""
+        # Create logout button
+        self.logout_btn = QPushButton("Log Out")
+        self.logout_btn.setIcon(QIcon("icons/logout.png"))
+        self.logout_btn.setCursor(Qt.PointingHandCursor)
+        self.logout_btn.setStyleSheet("""
             QPushButton {
                 background: transparent;
                 border: 1px solid #e2e8f0;
                 border-radius: 6px;
-                font-size: 16px;
-                padding: 6px;
+                font-size: 14px;
+                padding: 8px 15px;
+                text-align: left;
             }
             QPushButton:hover {
                 background: #f1f5f9;
@@ -220,9 +248,11 @@ class MainWindow(QMainWindow):
                 background: #e2e8f0;
             }
         """)
+        self.logout_btn.clicked.connect(self.handle_logout)
         
+        # Add user info and logout button to layout
         user_layout.addLayout(user_info_layout, 1)
-        user_layout.addWidget(logout_btn)
+        user_layout.addWidget(self.logout_btn, 0, Qt.AlignRight)
         
         layout.addWidget(user_container)
         

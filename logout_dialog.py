@@ -1,39 +1,34 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
-                           QPushButton, QFrame, QGraphicsDropShadowEffect, 
-                           QApplication, QDesktopWidget)
-from PyQt5.QtCore import Qt, QPoint
-from PyQt5.QtGui import QColor
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QLabel, 
+                           QDialogButtonBox, QHBoxLayout, QPushButton, QApplication, QDesktopWidget)
+from PyQt5.QtCore import Qt
 
 class LogoutConfirmationDialog(QDialog):
     def __init__(self, parent=None):
-        print("LogoutConfirmationDialog.__init__ called")  # Debug
-        super().__init__(parent)
-        print("1. Parent set:", parent)  # Debug
+        print("\n=== Creating LogoutConfirmationDialog ===")
+        print(f"Parent: {parent}")
         
+        # Initialize the dialog with proper flags
+        super().__init__(parent, Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
+        
+        # Basic dialog setup
         self.setWindowTitle("Logout Confirmation")
-        self.setFixedSize(400, 240)
-        print("2. Window size and title set")  # Debug
-        
-        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.CustomizeWindowHint)
-        print("3. Window flags set")  # Debug
+        self.setFixedSize(400, 280)
         
         # Main layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(32, 32, 32, 24)
         layout.setSpacing(24)
         
-        # Header
+        # Header with icon and message
         header = QVBoxLayout()
         header.setSpacing(12)
         
         # Icon
         icon_label = QLabel("🚪")
         icon_label.setStyleSheet("""
-            font-size: 40px;
-            padding: 0;
-            margin: 0;
+            font-size: 48px;
+            qproperty-alignment: AlignCenter;
         """)
-        icon_label.setAlignment(Qt.AlignCenter)
         
         # Title
         title_label = QLabel("Confirm Log Out")
@@ -47,12 +42,12 @@ class LogoutConfirmationDialog(QDialog):
         """)
         
         # Message
-        message_label = QLabel(
+        message = QLabel(
             "Are you sure you want to log out of your account? "
             "You'll need to sign in again to access your dashboard."
         )
-        message_label.setWordWrap(True)
-        message_label.setStyleSheet("""
+        message.setWordWrap(True)
+        message.setStyleSheet("""
             font-size: 14px;
             color: #64748b;
             margin: 0;
@@ -64,7 +59,7 @@ class LogoutConfirmationDialog(QDialog):
         # Add header widgets
         header.addWidget(icon_label)
         header.addWidget(title_label)
-        header.addWidget(message_label)
+        header.addWidget(message)
         
         # Button container
         button_container = QHBoxLayout()
@@ -106,7 +101,7 @@ class LogoutConfirmationDialog(QDialog):
                 border-radius: 8px;
                 font-size: 14px;
                 font-weight: 500;
-                padding: 0 24px;
+                padding: 0 20px;
             }
             QPushButton:hover {
                 background-color: #dc2626;
@@ -117,21 +112,17 @@ class LogoutConfirmationDialog(QDialog):
         """)
         logout_btn.clicked.connect(self.accept)
         
-        # Add buttons to container
-        button_container.addStretch(1)
+        # Add buttons to container with stretch
+        button_container.addStretch()
         button_container.addWidget(cancel_btn)
         button_container.addWidget(logout_btn)
         
-        # Add widgets to main layout
+        # Add to main layout
         layout.addLayout(header)
-        layout.addStretch(1)
+        layout.addStretch()
         layout.addLayout(button_container)
         
-        # Center the dialog on the screen
-        self.center_on_screen()
-        
-        # Debug
-        print("LogoutConfirmationDialog initialized")
+        print("LogoutConfirmationDialog created")
     
     def showEvent(self, event):
         # Center the dialog on the screen
