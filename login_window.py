@@ -125,9 +125,10 @@ class LoginWindow(QMainWindow):
         """Sets up the widgets and styling for the login form card."""
         self.login_card.setStyleSheet("""
             QWidget#login_card {
-                background: rgba(255, 255, 255, 0.92);
+                background: #e6f3ff;  /* Light blue background */
                 border-radius: 24px;
                 padding: 28px;
+                border: 1px solid #b3d9ff;  /* Light blue border */
             }
             QLabel#title_container {
                 background: white;

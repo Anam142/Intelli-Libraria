@@ -474,7 +474,7 @@ class DashboardWindow(QMainWindow):
 
         dashboard_layout.addSpacing(24)
         recent_label = QLabel("Recent Activity")
-        recent_label.setStyleSheet("font-size: 18px; color: #232b36; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 700; margin-bottom: 8px;")
+        recent_label.setStyleSheet("font-size: 24px; color: #232b36; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 700; margin-bottom: 8px;")
         dashboard_layout.addWidget(recent_label, alignment=Qt.AlignLeft)
 
         # Create the table with 5 columns
