@@ -101,15 +101,20 @@ class MainWindow(QMainWindow):
             print("Setting dialog properties...")
             dialog.setWindowModality(Qt.ApplicationModal)
             dialog.setAttribute(Qt.WA_DeleteOnClose)
-            
-            # Show the dialog explicitly
+
+            # Center the dialog on the screen
+            screen = QDesktopWidget().screenGeometry()
+            x = (screen.width() - dialog.width()) // 2
+            y = (screen.height() - dialog.height()) // 2
+            dialog.move(x, y)
+
             print("Showing dialog...")
             result = dialog.exec_()
             print(f"Dialog closed with result: {result}")
             
             if result == QDialog.Accepted:
                 print("Logout confirmed - closing application")
-                self.close()
+                self.logout_requested.emit()
             else:
                 print("Logout cancelled")
                 

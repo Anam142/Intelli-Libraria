@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QSizePolicy, QComboBox, QDateEdit, QMessageBox
 from PyQt5.QtCore import Qt, QDate, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QIcon
 import database
 
 class CreateReservationScreen(QWidget):
@@ -243,24 +243,103 @@ class ReservationManagementPage(QWidget):
             self.table.setItem(row, 2, QTableWidgetItem(username))
             self.table.setItem(row, 3, QTableWidgetItem(res_date))
 
-            # Actions button
-            cancel_btn = QPushButton("Cancel")
-            cancel_btn.setCursor(Qt.PointingHandCursor)
-            cancel_btn.setStyleSheet("background: #ef4444; color: #fff; font-size: 14px; font-weight: 600; border-radius: 8px; padding: 6px 16px; border: none;")
-            cancel_btn.clicked.connect(lambda ch, r=row: self.handle_cancel_reservation(r))
-            self.table.setCellWidget(row, 4, cancel_btn)
+            # Create actions widget
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout()
+            actions_layout.setContentsMargins(5, 0, 5, 0)
+            actions_layout.setSpacing(5)
+            
+            # Edit button
+            edit_btn = QPushButton("Edit")
+            edit_btn.setIcon(QIcon(":/icons/edit.svg"))
+            edit_btn.setToolTip("Edit")
+            edit_btn.setCursor(Qt.PointingHandCursor)
+            edit_btn.setStyleSheet("""
+                QPushButton {
+                    background: #1976d2;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                    min-width: 70px;
+                    min-height: 28px;
+                    font-size: 13px;
+                    font-weight: 600;
+                }
+                QPushButton:hover {
+                    background: #1565c0;
+                }
+                QPushButton:pressed {
+                    background: #0d47a1;
+                }
+            """)
+            edit_btn.clicked.connect(lambda checked, r=row: self.handle_edit_reservation(r))
+            
+            # Delete button
+            delete_btn = QPushButton("Delete")
+            delete_btn.setIcon(QIcon(":/icons/delete.svg"))
+            delete_btn.setToolTip("Delete")
+            delete_btn.setCursor(Qt.PointingHandCursor)
+            delete_btn.setStyleSheet("""
+                QPushButton {
+                    background: #d32f2f;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                    min-width: 70px;
+                    min-height: 28px;
+                    font-size: 13px;
+                    font-weight: 600;
+                }
+                QPushButton:hover {
+                    background: #b71c1c;
+                }
+                QPushButton:pressed {
+                    background: #7f0000;
+                }
+            """)
+            delete_btn.clicked.connect(lambda checked, r=row: self.handle_cancel_reservation(r))
+            
+            actions_layout.addWidget(edit_btn)
+            actions_layout.addWidget(delete_btn)
+            actions_widget.setLayout(actions_layout)
+            actions_widget.setStyleSheet("background: transparent;")
+            
+            self.table.setCellWidget(row, 4, actions_widget)
+
+    def handle_edit_reservation(self, row):
+        """Handle edit reservation button click"""
+        res_id = self.table.item(row, 0).text()
+        book_title = self.table.item(row, 1).text()
+        username = self.table.item(row, 2).text()
+        res_date = self.table.item(row, 3).text()
+        
+        # Here you would typically open an edit dialog with the reservation data
+        QMessageBox.information(self, "Edit Reservation", 
+                              f"Would edit reservation:\n"
+                              f"Book: {book_title}\n"
+                              f"User: {username}\n"
+                              f"Date: {res_date}")
 
     def handle_cancel_reservation(self, row):
         res_id = self.table.item(row, 0).text()
-        reply = QMessageBox.question(self, 'Cancel Reservation', 'Are you sure you want to cancel this reservation?',
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        book_title = self.table.item(row, 1).text()
+        
+        reply = QMessageBox.question(
+            self, 
+            'Delete Reservation', 
+            f'Are you sure you want to delete the reservation for "{book_title}"?',
+            QMessageBox.Yes | QMessageBox.No, 
+            QMessageBox.No
+        )
 
         if reply == QMessageBox.Yes:
             if database.delete_reservation(res_id):
-                QMessageBox.information(self, "Success", "Reservation canceled successfully.")
+                QMessageBox.information(self, "Success", "Reservation deleted successfully.")
                 self.load_reservations()
             else:
-                QMessageBox.warning(self, "Error", "Failed to cancel reservation.")
+                QMessageBox.warning(self, "Error", "Failed to delete reservation.")
 
     def show_create_reservation_screen(self):
         self.create_reservation_screen = CreateReservationScreen()

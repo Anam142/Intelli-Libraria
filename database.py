@@ -390,23 +390,54 @@ def get_borrowed_count():
 
 def get_overdue_count():
     """Return the number of overdue transactions if supported by schema; otherwise 0."""
-    conn = create_connection()
     try:
+        conn = create_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='transactions'")
-        if not cursor.fetchone():
-            return 0
+        
+        # Check if transactions table has the required columns
         cursor.execute("PRAGMA table_info(transactions)")
-        tcols = {row[1].lower() for row in cursor.fetchall()}
-        if 'status' in tcols:
-            cursor.execute("SELECT COUNT(*) FROM transactions WHERE LOWER(status) = 'overdue'")
-        else:
-            return 0
-        result = cursor.fetchone()
-        return int(result[0]) if result and result[0] is not None else 0
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'due_date' in columns and 'return_date' in columns and 'status' in columns:
+            cursor.execute(""" 
+                SELECT COUNT(*) FROM transactions 
+                WHERE status = 'Issued' 
+                AND due_date < date('now')
+            """)
+            return cursor.fetchone()[0] or 0
     except sqlite3.Error as e:
-        print(f"Database error: {e}")
-        return 0
+        print(f"Error getting overdue count: {e}")
+    return 0
+
+def get_recent_transactions(limit=8):
+    """Fetch recent transactions with book and user details for the dashboard.
+    
+    Returns:
+        list: List of tuples containing (book_title, author, user_name, due_date, status)
+    """
+    try:
+        conn = create_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                b.title, 
+                b.author,
+                u.full_name,
+                t.due_date,
+                t.status
+            FROM transactions t
+            JOIN books b ON t.book_id = b.id
+            JOIN users u ON t.user_id = u.id
+            ORDER BY t.issue_date DESC
+            LIMIT ?
+        """, (limit,))
+        
+        return cursor.fetchall()
+        
+    except sqlite3.Error as e:
+        print(f"Error fetching recent transactions: {e}")
+        return []
     finally:
         if conn:
             conn.close()

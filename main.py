@@ -55,7 +55,7 @@ def main():
                 print("on_logout() called in main.py")  # Debug
                 dashboard.close()
                 print("Dashboard closed, showing login")  # Debug
-                show_login()
+                login_window.show()
                 
             # Find the logout button in the sidebar and connect it
             if hasattr(dashboard, 'sidebar'):
@@ -66,13 +66,13 @@ def main():
                     pass
                 dashboard.sidebar.logout_requested.connect(on_logout)
                 
-                # Also connect the logout button's menu action if it exists
+                # Connect the logout button's click event
                 if hasattr(dashboard.sidebar, 'logout_btn'):
                     try:
                         dashboard.sidebar.logout_btn.clicked.disconnect()
                     except:
                         pass
-                    # The menu action is already connected to logout() in the Sidebar class
+                    dashboard.sidebar.logout_btn.clicked.connect(dashboard.sidebar.handle_logout)
         
         # Connect login success signal
         try:

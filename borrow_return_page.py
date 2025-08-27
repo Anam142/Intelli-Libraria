@@ -427,18 +427,19 @@ class BorrowReturnPage(QWidget):
                     ("Author:", r.get("author", "")),
                     ("ISBN:", r.get("isbn", "")),
                     ("Status:", status),
-                    ("Due Date:", "N/A"),
+                    ("Due Date:", "N/A")
                 ]
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error fetching book details: {e}")
+        
         if not book_fields:
-        book_fields = [
+            book_fields = [
                 ("Title:", ""),
                 ("Author:", ""),
                 ("ISBN:", ""),
                 ("Status:", ""),
                 ("Due Date:", "")
-        ]
+            ]
         
         for i, (label, value) in enumerate(book_fields):
             label_widget = QLabel(label)

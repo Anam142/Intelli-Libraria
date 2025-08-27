@@ -164,13 +164,29 @@ class AddReminderDialog(QDialog):
         
         if not title:
             QMessageBox.warning(self, "Validation Error", "Please enter a title for the reminder.")
+            self.title_input.setFocus()
             return
             
-        # Here you would typically save the reminder to your database
-        # For now, we'll just print the values
-        print(f"Reminder created:\nTitle: {title}\nDescription: {description}\nDue: {self.datetime_input.dateTime().toString()}")
+        # Get the reminder data
+        reminder_data = {
+            'title': title,
+            'notes': notes,
+            'due_date': self.datetime_input.dateTime().toString("yyyy-MM-dd hh:mm AP")
+        }
         
-        self.accept()
+        # Here you would typically save the reminder to your database
+        try:
+            # TODO: Replace this with actual database save logic
+            print(f"Saving reminder: {reminder_data}")
+            
+            # Show success message
+            QMessageBox.information(self, "Success", "Reminder saved successfully!")
+            self.accept()
+            
+        except Exception as e:
+            print(f"Error saving reminder: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to save reminder: {str(e)}")
+            return
 
     @staticmethod
     def get_reminder(parent=None):
@@ -180,8 +196,8 @@ class AddReminderDialog(QDialog):
         
         if result == QDialog.Accepted:
             return {
-                'title': dialog.title_input.text(),
-                'description': dialog.desc_input.text(),
-                'datetime': dialog.datetime_input.dateTime()
+                'title': dialog.title_input.text().strip(),
+                'notes': dialog.notes_input.toPlainText().strip(),
+                'due_date': dialog.datetime_input.dateTime().toString("yyyy-MM-dd hh:mm AP")
             }
         return None

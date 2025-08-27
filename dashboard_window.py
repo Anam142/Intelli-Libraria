@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
     QFrame, QSizePolicy, QGroupBox, QHeaderView, QApplication, QLineEdit, QListWidget, QListWidgetItem,
-    QGridLayout, QSpacerItem, QScrollArea, QStackedWidget, QMenu, QAction, QDialog
+    QGridLayout, QSpacerItem, QScrollArea, QStackedWidget, QMenu, QAction, QDialog, QMessageBox, QDesktopWidget
 )
 from logout_dialog import LogoutConfirmationDialog
 from PyQt5.QtCore import pyqtSignal, Qt, QSize, QPoint
@@ -228,7 +228,7 @@ class Sidebar(QWidget):
         def on_logout_clicked():
             print("Logout button clicked!")  # Debug
             # Always show the custom logout confirmation dialog
-                self.show_logout_confirmation()
+            self.show_logout_confirmation()
             
         self.logout_btn.clicked.connect(on_logout_clicked)
         print(f"Logout button connected: {self.logout_btn.signalsBlocked()}")  # Debug
@@ -239,65 +239,30 @@ class Sidebar(QWidget):
         layout.addStretch(1)  # This will push the bottom widget down
         layout.addWidget(bottom_widget)
 
-    def show_user_menu(self):
-        # Show the user menu below the logout button
-        # Ensure the dialog is shown directly (avoid hidden menu issues)
-        self.show_logout_confirmation()
-        
-        # Alternatively, you can directly show the logout confirmation
-        # by uncommenting the line below and removing the menu code above
-        # self.show_logout_confirmation()
-        
     def show_logout_confirmation(self):
-        print("1. show_logout_confirmation called")  # Debug
+        print("show_logout_confirmation called")  # Debug
         try:
-            # Get the main window
-            main_window = self.window()
-            print(f"2. Main window: {main_window}")  # Debug
+            dialog = LogoutConfirmationDialog(self)
+            dialog.setWindowModality(Qt.ApplicationModal)
             
-            # Create the dialog with the main window as parent
-            print("3. Creating dialog...")  # Debug
-            dialog = LogoutConfirmationDialog(main_window)
-            print("4. Dialog created")  # Debug
+            # Center the dialog on the screen
+            screen = QDesktopWidget().screenGeometry()
+            x = (screen.width() - dialog.width()) // 2
+            y = (screen.height() - dialog.height()) // 2
+            dialog.move(x, y)
             
-            # Set the dialog as modal
-            dialog.setModal(True)
-            print("5. Dialog set as modal")  # Debug
-            
-            # Show the dialog and wait for user response
-            print("6. Showing dialog...")  # Debug
             result = dialog.exec_()
-            print(f"7. Dialog result: {result}")  # Debug
-            
-            # Uncheck the logout button regardless of the result
-            self.logout_btn.setChecked(False)
             
             if result == QDialog.Accepted:
-                print("8. User confirmed logout")  # Debug
-                # Emit the logout signal if user confirmed
+                print("User confirmed logout")  # Debug
                 self.logout_requested.emit()
             else:
-                print("8. User cancelled logout")  # Debug
+                print("User cancelled logout")  # Debug
                 
         except Exception as e:
-            # Fallback: use QMessageBox question if the custom dialog fails for any reason
-            try:
-                from PyQt5.QtWidgets import QMessageBox
-                print(f"ERROR in show_logout_confirmation: {str(e)}")
-                reply = QMessageBox.question(
-                    self,
-                    'Logout',
-                    'Are you sure you want to logout?',
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.No
-                )
-                self.logout_btn.setChecked(False)
-                if reply == QMessageBox.Yes:
-                    self.logout_requested.emit()
-            except Exception as _:
-                import traceback
-                traceback.print_exc()
-                self.logout_btn.setChecked(False)  # Ensure button is unchecked on error
+            print(f"Error in show_logout_confirmation: {e}")  # Debug
+            import traceback
+            traceback.print_exc()
 
     def select_button(self, selected_btn):
         # Only allow one button to be active at a time
@@ -306,20 +271,29 @@ class Sidebar(QWidget):
         self.active_button = selected_btn
         
     def handle_logout(self):
-        # Show confirmation dialog
-        reply = QMessageBox.question(
-            self, 'Logout', 'Are you sure you want to logout?',
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-        )
-        
-        if reply == QMessageBox.Yes:
-            # Get the main window and close it
-            main_window = self.window()
-            if main_window:
-                from main import LoginWindow  # Import here to avoid circular import
-                login_window = LoginWindow()
-                login_window.show()
-                main_window.close()
+        try:
+            # Show the logout confirmation dialog
+            dialog = LogoutConfirmationDialog(self)
+            dialog.setWindowModality(Qt.ApplicationModal)
+            
+            # Center the dialog on the screen
+            screen = QDesktopWidget().screenGeometry()
+            x = (screen.width() - dialog.width()) // 2
+            y = (screen.height() - dialog.height()) // 2
+            dialog.move(x, y)
+            
+            result = dialog.exec_()
+            
+            if result == QDialog.Accepted:
+                print("User confirmed logout")  # Debug
+                self.logout_requested.emit()
+            else:
+                print("User cancelled logout")  # Debug
+                
+        except Exception as e:
+            print(f"Error in handle_logout: {e}")  # Debug
+            import traceback
+            traceback.print_exc()
 
 
 class DashboardWindow(QMainWindow):
@@ -487,7 +461,8 @@ class DashboardWindow(QMainWindow):
         recent_label.setStyleSheet("font-size: 18px; color: #232b36; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 700; margin-bottom: 8px;")
         dashboard_layout.addWidget(recent_label, alignment=Qt.AlignLeft)
 
-        table = QTableWidget(8, 5)  
+        # Create the table with 5 columns
+        table = QTableWidget(0, 5)  # Start with 0 rows, we'll add them dynamically
         table.setHorizontalHeaderLabels(["Book Title", "Author", "Borrower", "Due Date", "Status"])
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         table.verticalHeader().setVisible(False)
@@ -497,7 +472,53 @@ class DashboardWindow(QMainWindow):
         table.setAlternatingRowColors(True)
         table.setFocusPolicy(Qt.NoFocus)
         table.verticalHeader().setDefaultSectionSize(48)
-        table.setMinimumHeight(400)  
+        table.setMinimumHeight(400)
+        
+        # Fetch and populate recent transactions
+        try:
+            from database import get_recent_transactions
+            transactions = get_recent_transactions(limit=10)  # Get up to 10 recent transactions
+            
+            # Set row count based on actual data
+            table.setRowCount(len(transactions))
+            
+            # Populate the table with transaction data
+            for row, (title, author, user_name, due_date, status) in enumerate(transactions):
+                # Create table items for each column
+                title_item = QTableWidgetItem(title)
+                author_item = QTableWidgetItem(author)
+                user_item = QTableWidgetItem(user_name)
+                due_date_item = QTableWidgetItem(due_date)
+                status_item = QTableWidgetItem(status)
+                
+                # Set text alignment
+                for item in [title_item, author_item, user_item, due_date_item, status_item]:
+                    item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                
+                # Add items to the table
+                table.setItem(row, 0, title_item)
+                table.setItem(row, 1, author_item)
+                table.setItem(row, 2, user_item)
+                table.setItem(row, 3, due_date_item)
+                table.setItem(row, 4, status_item)
+                
+                # Color code status
+                if status == 'Overdue':
+                    status_item.setForeground(QColor('#ef4444'))  # Red for overdue
+                    status_item.setFont(QFont('Arial', 9, QFont.Bold))
+                elif status == 'Issued':
+                    status_item.setForeground(QColor('#f59e0b'))  # Yellow for issued
+                elif status == 'Returned':
+                    status_item.setForeground(QColor('#10b981'))  # Green for returned
+                    
+        except Exception as e:
+            print(f"Error loading recent transactions: {e}")
+            # Add a single row with error message if loading fails
+            table.setRowCount(1)
+            error_item = QTableWidgetItem("Error loading recent activity")
+            error_item.setTextAlignment(Qt.AlignCenter)
+            table.setSpan(0, 0, 1, 5)  # Span all columns
+            table.setItem(0, 0, error_item)
         table.setStyleSheet("""
             QTableWidget {
                 background: #fff;

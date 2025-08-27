@@ -125,8 +125,8 @@ class ReportGenerationPage(QWidget):
         preview_label.setStyleSheet("margin-bottom: 8px; margin-top: 0px;")  # Remove extra top margin
         main_layout.addWidget(preview_label)
 
-        self.table = QTableWidget(5, 5)
-        self.table.setHorizontalHeaderLabels(["Title", "Author", "ISBN", "Available", "Total"])
+        self.table = QTableWidget(5, 6)
+        self.table.setHorizontalHeaderLabels(["Title", "Author", "ISBN", "Available", "Total", "Actions"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -261,13 +261,12 @@ class ReportGenerationPage(QWidget):
                 ORDER BY t.issue_date DESC
                 """
             )
-            from datetime import date
-        today = date.today()
             for r in rows:
                 due = r.get("due_date") or ""
                 # Days left calculation best-effort
                 try:
-                    from datetime import datetime
+                    from datetime import date, datetime
+                    today = date.today()
                     days_left = (datetime.strptime(due, "%Y-%m-%d").date() - today).days
                 except Exception:
                     days_left = ""
@@ -297,7 +296,7 @@ class ReportGenerationPage(QWidget):
                 """
             )
             from datetime import date, datetime
-        today = date.today()
+            today = date.today()
             for r in rows:
                 due = r.get("due_date") or ""
                 try:
@@ -305,7 +304,8 @@ class ReportGenerationPage(QWidget):
                 except Exception:
                     days_over = ""
                 data.append((r["title"], r.get("borrower", ""), due, str(days_over), ""))
-        except Exception:
+        except Exception as e:
+            print(f"Error generating overdue books report: {e}")
             data = []
         
         self._populate_table(data)
@@ -324,13 +324,107 @@ class ReportGenerationPage(QWidget):
         
         self._populate_table(data)
     
+    def _on_edit_clicked(self, row):
+        """Handle edit button click"""
+        # Get the book data from the row
+        title = self.table.item(row, 0).text()
+        author = self.table.item(row, 1).text()
+        isbn = self.table.item(row, 2).text()
+        
+        # Here you would typically open an edit dialog with the book data
+        QMessageBox.information(self, "Edit Book", 
+                              f"Would edit book: {title}\n"
+                              f"Author: {author}\n"
+                              f"ISBN: {isbn}")
+    
+    def _on_delete_clicked(self, row):
+        """Handle delete button click"""
+        # Get the book title for confirmation
+        title = self.table.item(row, 0).text()
+        
+        # Ask for confirmation
+        reply = QMessageBox.question(
+            self, 'Delete Book',
+            f'Are you sure you want to delete "{title}"?',
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            # Here you would typically delete the book from the database
+            # For now, just remove the row from the table
+            self.table.removeRow(row)
+            QMessageBox.information(self, "Success", f"Book '{title}' has been deleted.")
+    
     def _populate_table(self, data):
         """Populate the table with data"""
         self.table.setRowCount(len(data))
         for row, row_data in enumerate(data):
-            for col, value in enumerate(row_data):
+            # Add regular data columns
+            for col in range(min(len(row_data), 5)):  # Only process up to column 4 (0-4)
+                value = row_data[col] if col < len(row_data) else ""
                 item = QTableWidgetItem(str(value))
                 # Style overdue items in red
                 if value in ["Overdue", "Due Today"] or (isinstance(value, str) and value.startswith("-")):
                     item.setForeground(QColor("#d32f2f"))
                 self.table.setItem(row, col, item)
+            
+            # Add action buttons
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout()
+            actions_layout.setContentsMargins(5, 0, 5, 0)
+            actions_layout.setSpacing(5)
+            
+            # Edit button
+            edit_btn = QPushButton()
+            edit_btn.setIcon(QIcon(":/icons/edit.svg"))
+            edit_btn.setToolTip("Edit")
+            edit_btn.setStyleSheet("""
+                QPushButton {
+                    background: #1976d2;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 4px;
+                    min-width: 24px;
+                    max-width: 24px;
+                    min-height: 24px;
+                    max-height: 24px;
+                }
+                QPushButton:hover {
+                    background: #1565c0;
+                }
+                QPushButton:pressed {
+                    background: #0d47a1;
+                }
+            """)
+            edit_btn.clicked.connect(lambda checked, r=row: self._on_edit_clicked(r))
+            
+            # Delete button
+            delete_btn = QPushButton()
+            delete_btn.setIcon(QIcon(":/icons/delete.svg"))
+            delete_btn.setToolTip("Delete")
+            delete_btn.setStyleSheet("""
+                QPushButton {
+                    background: #d32f2f;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 4px;
+                    min-width: 24px;
+                    max-width: 24px;
+                    min-height: 24px;
+                    max-height: 24px;
+                }
+                QPushButton:hover {
+                    background: #b71c1c;
+                }
+                QPushButton:pressed {
+                    background: #7f0000;
+                }
+            """)
+            delete_btn.clicked.connect(lambda checked, r=row: self._on_delete_clicked(r))
+            
+            actions_layout.addWidget(edit_btn)
+            actions_layout.addWidget(delete_btn)
+            actions_widget.setLayout(actions_layout)
+            actions_widget.setStyleSheet("background: transparent;")
+            
+            self.table.setCellWidget(row, 5, actions_widget)

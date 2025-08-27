@@ -2,7 +2,8 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                            QPushButton, QTableWidget, QTableWidgetItem, QHeaderView,
                            QMessageBox, QDialog, QDateTimeEdit, QTextEdit, QComboBox,
                            QFrame, QSizePolicy, QScrollArea, QToolButton, QLineEdit,
-                           QTabWidget, QListWidget, QListWidgetItem, QCheckBox, QStackedWidget)
+                           QTabWidget, QListWidget, QListWidgetItem, QCheckBox, QStackedWidget,
+                           QDialogButtonBox)
 from PyQt5.QtCore import Qt, QDateTime, pyqtSignal, QSize, QPoint
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QColor, QPainter, QPainterPath, QCursor
 
@@ -409,24 +410,17 @@ class NotificationReminderPage(QWidget):
             }
         """)
         
-        reminders = [
-            ("Return 'The Silent Observer'", "2024-08-15 10:00 AM", "Return the book to avoid late fees."),
-            ("Renew 'Echoes of the Past'", "2024-08-20 02:00 PM", "Renew the book to keep it longer."),
-            ("Pick up 'The Lost City'", "2024-08-25 04:00 PM", "Pick up the reserved book."),
-            ("Pay fines", "2024-08-30 11:00 AM", "Pay outstanding fines."),
-            ("Attend book club meeting", "2024-09-05 07:00 PM", "Attend the monthly book club meeting."),
+        # Store reminders as instance variable to track state
+        self.reminders = [
+            {"id": 1, "title": "Return 'The Silent Observer'", "datetime": "2024-08-15 10:00 AM", "description": "Return the book to avoid late fees.", "completed": False},
+            {"id": 2, "title": "Renew 'Echoes of the Past'", "datetime": "2024-08-20 02:00 PM", "description": "Renew the book to keep it longer.", "completed": False},
+            {"id": 3, "title": "Pick up 'The Lost City'", "datetime": "2024-08-25 04:00 PM", "description": "Pick up the reserved book.", "completed": False},
+            {"id": 4, "title": "Pay fines", "datetime": "2024-08-30 11:00 AM", "description": "Pay outstanding fines.", "completed": False},
+            {"id": 5, "title": "Attend book club meeting", "datetime": "2024-09-05 07:00 PM", "description": "Attend the monthly book club meeting.", "completed": False},
         ]
         
-        for row, (title, dt, desc) in enumerate(reminders):
-            table.setItem(row, 0, QTableWidgetItem(title))
-            table.setItem(row, 1, QTableWidgetItem(dt))
-            table.setItem(row, 2, QTableWidgetItem(desc))
-            actions = QLabel("<a href='#' style='color:#2563eb;text-decoration:none; font-weight:700;'>Edit</a> | <a href='#' style='color:#f87171;text-decoration:none; font-weight:700;'>Delete</a> | <a href='#' style='color:#059669;text-decoration:none; font-weight:700;'>Complete</a>")
-            actions.setTextFormat(Qt.RichText)
-            actions.setOpenExternalLinks(False)
-            actions.setAlignment(Qt.AlignCenter)
-            actions.setStyleSheet("font-size: 16px; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: none; border: none;")
-            table.setCellWidget(row, 3, actions)
+        # Populate the table with reminders
+        self.populate_reminders_table(table)
         
         self.main_layout.addWidget(table)
 
@@ -571,6 +565,228 @@ class NotificationReminderPage(QWidget):
         self.main_layout.addLayout(button_row)
         self.main_layout.addStretch(1)
 
+    def populate_reminders_table(self, table):
+        """Populate the reminders table with current reminders data"""
+        table.setRowCount(len(self.reminders))
+        
+        for row, reminder in enumerate(self.reminders):
+            # Set title with strikethrough if completed
+            title_item = QTableWidgetItem(reminder["title"])
+            if reminder["completed"]:
+                title_item.setFlags(title_item.flags() & ~Qt.ItemIsEnabled)
+                title_item.setData(Qt.TextColorRole, QColor("#6b7280"))
+                title_item.setText(title_item.text() + " ✓")
+            
+            table.setItem(row, 0, title_item)
+            table.setItem(row, 1, QTableWidgetItem(reminder["datetime"]))
+            
+            # Set description with strikethrough if completed
+            desc_item = QTableWidgetItem(reminder["description"])
+            if reminder["completed"]:
+                desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEnabled)
+                desc_item.setData(Qt.TextColorRole, QColor("#6b7280"))
+            table.setItem(row, 2, desc_item)
+            
+            # Create action buttons
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout(actions_widget)
+            actions_layout.setContentsMargins(5, 0, 5, 0)
+            actions_layout.setSpacing(5)
+            
+            # Edit button
+            edit_btn = QPushButton("Edit")
+            edit_btn.setCursor(Qt.PointingHandCursor)
+            edit_btn.setStyleSheet("""
+                QPushButton {
+                    background: #3b82f6;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    font-size: 12px;
+                    font-weight: 500;
+                }
+                QPushButton:hover {
+                    background: #2563eb;
+                }
+                QPushButton:disabled {
+                    background: #9ca3af;
+                    color: #e5e7eb;
+                }
+            """)
+            edit_btn.clicked.connect(lambda checked, r=row: self.edit_reminder(r))
+            
+            # Delete button
+            delete_btn = QPushButton("Delete")
+            delete_btn.setCursor(Qt.PointingHandCursor)
+            delete_btn.setStyleSheet("""
+                QPushButton {
+                    background: #ef4444;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    font-size: 12px;
+                    font-weight: 500;
+                }
+                QPushButton:hover {
+                    background: #dc2626;
+                }
+                QPushButton:disabled {
+                    background: #9ca3af;
+                    color: #e5e7eb;
+                }
+            """)
+            delete_btn.clicked.connect(lambda checked, r=row: self.delete_reminder(r))
+            
+            # Complete button
+            complete_text = "Undo" if reminder["completed"] else "Complete"
+            complete_btn = QPushButton(complete_text)
+            complete_btn.setCursor(Qt.PointingHandCursor)
+            complete_btn.setStyleSheet("""
+                QPushButton {
+                    background: #10b981;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    font-size: 12px;
+                    font-weight: 500;
+                }
+                QPushButton:hover {
+                    background: #059669;
+                }
+                QPushButton:disabled {
+                    background: #9ca3af;
+                    color: #e5e7eb;
+                }
+            """)
+            complete_btn.clicked.connect(lambda checked, r=row: self.toggle_reminder_completion(r))
+            
+            # Disable buttons if reminder is completed
+            if reminder["completed"]:
+                edit_btn.setEnabled(False)
+                complete_btn.setText("Undo")
+            
+            actions_layout.addWidget(edit_btn)
+            actions_layout.addWidget(delete_btn)
+            actions_layout.addWidget(complete_btn)
+            actions_layout.addStretch()
+            
+            table.setCellWidget(row, 3, actions_widget)
+    
+    def edit_reminder(self, row):
+        """Handle edit reminder action"""
+        if 0 <= row < len(self.reminders):
+            reminder = self.reminders[row]
+            
+            # Create and show edit dialog
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Edit Reminder")
+            dialog.setFixedSize(500, 400)
+            layout = QVBoxLayout(dialog)
+            
+            # Title
+            title_label = QLabel("Title:")
+            title_edit = QLineEdit(reminder["title"])
+            
+            # Date and Time
+            datetime_label = QLabel("Date and Time:")
+            datetime_edit = QLineEdit(reminder["datetime"])
+            
+            # Description
+            desc_label = QLabel("Description:")
+            desc_edit = QTextEdit(reminder["description"])
+            
+            # Buttons
+            button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            button_box.accepted.connect(dialog.accept)
+            button_box.rejected.connect(dialog.reject)
+            
+            # Add widgets to layout
+            layout.addWidget(title_label)
+            layout.addWidget(title_edit)
+            layout.addWidget(datetime_label)
+            layout.addWidget(datetime_edit)
+            layout.addWidget(desc_label)
+            layout.addWidget(desc_edit)
+            layout.addWidget(button_box)
+            
+            # Style the dialog
+            dialog.setStyleSheet("""
+                QDialog {
+                    background: #ffffff;
+                    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+                }
+                QLabel {
+                    font-size: 14px;
+                    font-weight: 500;
+                    color: #374151;
+                    margin-top: 10px;
+                }
+                QLineEdit, QTextEdit {
+                    border: 1px solid #d1d5db;
+                    border-radius: 4px;
+                    padding: 8px;
+                    font-size: 14px;
+                }
+                QTextEdit {
+                    min-height: 100px;
+                }
+            """)
+            
+            if dialog.exec_() == QDialog.Accepted:
+                # Update reminder
+                self.reminders[row]["title"] = title_edit.text()
+                self.reminders[row]["datetime"] = datetime_edit.text()
+                self.reminders[row]["description"] = desc_edit.toPlainText()
+                
+                # Find the table in the current layout and update it
+                for i in range(self.main_layout.count()):
+                    widget = self.main_layout.itemAt(i).widget()
+                    if isinstance(widget, QTableWidget):
+                        self.populate_reminders_table(widget)
+                        break
+                        
+                QMessageBox.information(self, "Success", "Reminder updated successfully!")
+    
+    def delete_reminder(self, row):
+        """Handle delete reminder action"""
+        if 0 <= row < len(self.reminders):
+            reply = QMessageBox.question(
+                self,
+                'Delete Reminder',
+                'Are you sure you want to delete this reminder?',
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            
+            if reply == QMessageBox.Yes:
+                del self.reminders[row]
+                # Find the table in the current layout and update it
+                for i in range(self.main_layout.count()):
+                    widget = self.main_layout.itemAt(i).widget()
+                    if isinstance(widget, QTableWidget):
+                        self.populate_reminders_table(widget)
+                        break
+                        
+                QMessageBox.information(self, "Success", "Reminder deleted successfully!")
+    
+    def toggle_reminder_completion(self, row):
+        """Toggle reminder completion status"""
+        if 0 <= row < len(self.reminders):
+            self.reminders[row]["completed"] = not self.reminders[row]["completed"]
+            
+            # Find the table in the current layout and update it
+            for i in range(self.main_layout.count()):
+                widget = self.main_layout.itemAt(i).widget()
+                if isinstance(widget, QTableWidget):
+                    self.populate_reminders_table(widget)
+                    break
+            
+            status = "completed" if self.reminders[row]["completed"] else "marked as incomplete"
+            QMessageBox.information(self, "Success", f"Reminder {status} successfully!")
+    
     def show_reminders_tab(self):
         """Go back to reminders tab"""
         self.current_tab = 'reminders'
@@ -578,8 +794,26 @@ class NotificationReminderPage(QWidget):
 
     def save_reminder(self):
         """Save the reminder and go back to reminders tab"""
-        QMessageBox.information(self, "Success", "Reminder saved successfully!")
-        self.show_reminders_tab()
+        # Get all input fields from the form
+        title_input = self.findChild(QLineEdit)
+        notes_input = self.findChild(QTextEdit)
+        
+        if title_input and notes_input:
+            # Create new reminder
+            new_reminder = {
+                "id": max([r["id"] for r in self.reminders], default=0) + 1,
+                "title": title_input.text(),
+                "datetime": "2024-08-15 10:00 AM",  # Default datetime, should be replaced with actual datetime picker value
+                "description": notes_input.toPlainText(),
+                "completed": False
+            }
+            
+            # Add to reminders list
+            self.reminders.append(new_reminder)
+            
+            # Show success message and go back to reminders tab
+            QMessageBox.information(self, "Success", "Reminder saved successfully!")
+            self.show_reminders_tab()
 
     def show_date_picker(self):
         """Show date picker when calendar icon is clicked"""

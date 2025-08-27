@@ -345,9 +345,9 @@ class SignupPage(QMainWindow):
                 if hasattr(self.parent, 'show_login_page'):
                     self.parent.show_login_page()
                 elif hasattr(self.parent, 'show_login'):
-            self.parent.show_login()
+                    self.parent.show_login()
             finally:
-            self.close()
+                self.close()
 
 def main():
     app = QApplication(sys.argv)

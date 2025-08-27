@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QLabel, 
-                           QDialogButtonBox, QHBoxLayout, QPushButton, QApplication, QDesktopWidget)
+                           QDialogButtonBox, QHBoxLayout, QPushButton, QApplication, QDesktopWidget, QFrame)
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap, QIcon
 
 class LogoutConfirmationDialog(QDialog):
     def __init__(self, parent=None):
@@ -23,12 +24,47 @@ class LogoutConfirmationDialog(QDialog):
         header = QVBoxLayout()
         header.setSpacing(12)
         
-        # Icon
-        icon_label = QLabel("🚪")
-        icon_label.setStyleSheet("""
-            font-size: 48px;
-            qproperty-alignment: AlignCenter;
+        # Icon container with border
+        icon_container = QFrame()
+        icon_container.setFixedSize(80, 80)
+        icon_container.setStyleSheet("""
+            QFrame {
+                background-color: #fef2f2;
+                border-radius: 40px;
+                border: 1px solid #fecaca;
+            }
         """)
+        
+        icon_layout = QVBoxLayout(icon_container)
+        icon_layout.setContentsMargins(0, 0, 0, 0)
+        icon_layout.setSpacing(0)
+        
+        # Add icon using built-in Qt icon
+        try:
+            icon_label = QLabel()
+            icon_label.setAlignment(Qt.AlignCenter)
+            
+            # Use a built-in Qt icon for logout
+            logout_icon = QApplication.style().standardIcon(QApplication.style().SP_DialogCloseButton)
+            icon_pixmap = logout_icon.pixmap(48, 48)
+            
+            # Apply a color tint to match the logout theme
+            from PyQt5.QtGui import QPainter, QColor
+            tinted_pixmap = icon_pixmap.copy()
+            painter = QPainter(tinted_pixmap)
+            painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
+            painter.fillRect(tinted_pixmap.rect(), QColor("#ef4444"))  # Red color for logout action
+            painter.end()
+            
+            icon_label.setPixmap(tinted_pixmap)
+            icon_layout.addWidget(icon_label, 0, Qt.AlignCenter)
+            
+        except Exception as e:
+            print(f"Error creating icon: {e}")
+            # Fallback to text emoji if icon creation fails
+            icon_label = QLabel("🚪")
+            icon_label.setStyleSheet("font-size: 32px;")
+            icon_layout.addWidget(icon_label, 0, Qt.AlignCenter)
         
         # Title
         title_label = QLabel("Confirm Log Out")
@@ -57,8 +93,9 @@ class LogoutConfirmationDialog(QDialog):
         """)
         
         # Add header widgets
-        header.addWidget(icon_label)
+        header.addWidget(icon_container, 0, Qt.AlignCenter)
         header.addWidget(title_label)
+        header.setAlignment(Qt.AlignCenter)
         header.addWidget(message)
         
         # Button container
@@ -122,15 +159,11 @@ class LogoutConfirmationDialog(QDialog):
         layout.addStretch()
         layout.addLayout(button_container)
         
-<<<<<<< HEAD
-        print("LogoutConfirmationDialog created")
-=======
         # Center the dialog initially
         self.center_on_screen()
         
         # Debug
         print("LogoutConfirmationDialog initialized")
->>>>>>> 2a996d6407c022584754d7f3d8e3dbdbc22eaedc
     
     def showEvent(self, event):
         # Center the dialog on the screen
