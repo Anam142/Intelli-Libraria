@@ -167,38 +167,55 @@ class ReservationManagementPage(QWidget):
         main_layout.addWidget(header)
 
         # Search bar
-        search_bar = QLineEdit()
-        search_bar.setPlaceholderText("Search by book title or user...")
-        search_bar.setStyleSheet("""
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Search by book title or user...")
+        self.search_bar.textChanged.connect(self.filter_reservations)
+        self.search_bar.setStyleSheet("""
             QLineEdit {
                 background: #fff;
                 border: 1.5px solid #e5e7eb;
-                border-radius: 12px;
+                border-radius: 20px;
                 padding: 12px 16px;
                 font-size: 15px;
                 font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
                 color: #232b36;
                 margin-bottom: 12px;
             }
+            QLineEdit:focus {
+                border: 1.5px solid #1976d2;
+                outline: none;
+            }
         """)
-        main_layout.addWidget(search_bar)
+        main_layout.addWidget(self.search_bar)
 
         self.table = QTableWidget()
         self.table.setColumnCount(5) # ID, Book Title, User, Reservation Date, Actions
+        self.all_reservations = []  # Store all reservations for filtering
         self.table.setHorizontalHeaderLabels(["ID", "Book Title", "User", "Reservation Date", "Actions"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        
+        # Set column resize modes - let first 3 columns stretch, last column fixed width
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # ID
+        header.setSectionResizeMode(1, QHeaderView.Stretch)  # Book Title
+        header.setSectionResizeMode(2, QHeaderView.Stretch)  # User
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Date
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # Actions
+        
+        # Set minimum width for the actions column to prevent cutting off buttons
+        header.setMinimumSectionSize(220)  # Increased to accommodate better button spacing
+        self.table.setColumnWidth(4, 220)  # Increased fixed width for actions column
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionMode(QTableWidget.NoSelection)
         self.table.setShowGrid(False)
         self.table.setAlternatingRowColors(True)
         self.table.setFocusPolicy(Qt.NoFocus)
-        self.table.verticalHeader().setDefaultSectionSize(54)
+        self.table.verticalHeader().setDefaultSectionSize(60)  # Reduced row height for more professional look
         self.table.setColumnHidden(0, True) # Hide ID column
         self.table.setStyleSheet("""
             QTableWidget {
                 background: #fff;
-                border-radius: 16px;
+                border-radius: 20px;
                 font-size: 16px;
                 font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
                 border: 1.5px solid #e5e7eb;
@@ -219,6 +236,16 @@ class ReservationManagementPage(QWidget):
                 padding: 16px 8px;
                 font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
             }
+            QTableWidget QPushButton {
+                border-radius: 16px;
+                min-width: 80px;
+                height: 32px;
+                padding: 6px 12px;
+                font-size: 13px;
+                font-weight: 600;
+                margin: 0 6px;
+                border: none;
+            }
         """)
         main_layout.addWidget(self.table)
         self.load_reservations()
@@ -233,96 +260,156 @@ class ReservationManagementPage(QWidget):
         main_layout.addLayout(btn_row)
 
     def load_reservations(self):
-        reservations = database.get_all_reservations()
-        self.table.setRowCount(len(reservations))
+        self.all_reservations = database.get_all_reservations()
+        self.filter_reservations()
 
-        for row, res_data in enumerate(reservations):
+    def filter_reservations(self):
+        """Filter reservations based on search text in book title or username"""
+        search_text = self.search_bar.text().lower().strip()
+
+        if not search_text:
+            # If search is empty, show all reservations
+            filtered_reservations = self.all_reservations
+        else:
+            # Filter reservations based on search text
+            filtered_reservations = [
+                res for res in self.all_reservations 
+                if (search_text in str(res[1]).lower() or  # Book title
+                     search_text in str(res[2]).lower())   # Username
+            ]
+
+        # Update the table with filtered results
+        self.table.setRowCount(len(filtered_reservations))
+        for row, res_data in enumerate(filtered_reservations):
             res_id, book_title, username, res_date = res_data
             self.table.setItem(row, 0, QTableWidgetItem(str(res_id)))
             self.table.setItem(row, 1, QTableWidgetItem(book_title))
             self.table.setItem(row, 2, QTableWidgetItem(username))
             self.table.setItem(row, 3, QTableWidgetItem(res_date))
 
-            # Create actions widget
-            actions_widget = QWidget()
-            actions_layout = QHBoxLayout()
-            actions_layout.setContentsMargins(5, 0, 5, 0)
-            actions_layout.setSpacing(5)
-            
-            # Edit button
-            edit_btn = QPushButton("Edit")
-            edit_btn.setIcon(QIcon(":/icons/edit.svg"))
-            edit_btn.setToolTip("Edit")
-            edit_btn.setCursor(Qt.PointingHandCursor)
-            edit_btn.setStyleSheet("""
-                QPushButton {
-                    background: #1976d2;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    padding: 6px 12px;
-                    min-width: 70px;
-                    min-height: 28px;
-                    font-size: 13px;
-                    font-weight: 600;
-                }
-                QPushButton:hover {
-                    background: #1565c0;
-                }
-                QPushButton:pressed {
-                    background: #0d47a1;
-                }
-            """)
-            edit_btn.clicked.connect(lambda checked, r=row: self.handle_edit_reservation(r))
-            
-            # Delete button
-            delete_btn = QPushButton("Delete")
-            delete_btn.setIcon(QIcon(":/icons/delete.svg"))
-            delete_btn.setToolTip("Delete")
-            delete_btn.setCursor(Qt.PointingHandCursor)
-            delete_btn.setStyleSheet("""
-                QPushButton {
-                    background: #d32f2f;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    padding: 6px 12px;
-                    min-width: 70px;
-                    min-height: 28px;
-                    font-size: 13px;
-                    font-weight: 600;
-                }
-                QPushButton:hover {
-                    background: #b71c1c;
-                }
-                QPushButton:pressed {
-                    background: #7f0000;
-                }
-            """)
-            delete_btn.clicked.connect(lambda checked, r=row: self.handle_cancel_reservation(r))
-            
-            actions_layout.addWidget(edit_btn)
-            actions_layout.addWidget(delete_btn)
-            actions_widget.setLayout(actions_layout)
-            actions_widget.setStyleSheet("background: transparent;")
-            
-            self.table.setCellWidget(row, 4, actions_widget)
+            # Recreate actions widget for each row
+            self._add_action_buttons(row, res_id)
+
+    def _add_action_buttons(self, row, res_id):
+        """Helper method to add action buttons to a table row"""
+        actions_widget = QWidget()
+        actions_widget.setStyleSheet("""
+            QWidget {
+                background: transparent;
+                margin: 2px 0;
+                border: none;
+            }
+        """)
+        actions_layout = QHBoxLayout(actions_widget)
+        actions_layout.setContentsMargins(10, 6, 10, 6)
+        actions_layout.setSpacing(6)  # Reduced spacing between buttons
+
+        # Edit button
+        edit_btn = QPushButton("Edit")
+        edit_btn.setIcon(QIcon(":/icons/edit.svg"))
+        edit_btn.setToolTip("Edit")
+        edit_btn.setCursor(Qt.PointingHandCursor)
+        edit_btn.setStyleSheet("""
+            QPushButton {
+                background: #1976d2;
+                color: white;
+                border: none;
+                border-radius: 16px;
+                padding: 6px 12px;
+                min-width: 80px;
+                height: 32px;
+                font-size: 13px;
+                font-weight: 600;
+                margin-right: 6px;
+                border-top-right-radius: 16px;
+                border-bottom-right-radius: 16px;
+                border-top-left-radius: 16px;
+                border-bottom-left-radius: 16px;
+            }
+            QPushButton:hover {
+                background: #1565c0;
+            }
+            QPushButton:pressed {
+                background: #0d47a1;
+            }
+        """)
+        edit_btn.clicked.connect(lambda checked, r=row: self.handle_edit_reservation(r))
+
+        # Delete button
+        delete_btn = QPushButton("Delete")
+        delete_btn.setIcon(QIcon(":/icons/delete.svg"))
+        delete_btn.setToolTip("Delete")
+        delete_btn.setCursor(Qt.PointingHandCursor)
+        delete_btn.setStyleSheet("""
+            QPushButton {
+                background: #d32f2f;
+                color: white;
+                border: none;
+                border-radius: 16px;
+                padding: 6px 12px;
+                min-width: 80px;
+                height: 32px;
+                font-size: 13px;
+                font-weight: 600;
+                margin-left: 6px;
+                border-top-right-radius: 16px;
+                border-bottom-right-radius: 16px;
+                border-top-left-radius: 16px;
+                border-bottom-left-radius: 16px;
+            }
+            QPushButton:hover {
+                background: #b71c1c;
+            }
+            QPushButton:pressed {
+                background: #7f0000;
+            }
+        """)
+        delete_btn.clicked.connect(lambda checked, r=row: self.handle_delete_reservation(r))
+
+        actions_layout.addWidget(edit_btn)
+        actions_layout.addWidget(delete_btn)
+        actions_widget.setLayout(actions_layout)
+        self.table.setCellWidget(row, 4, actions_widget)
 
     def handle_edit_reservation(self, row):
-        """Handle edit reservation button click"""
+        """Handle edit reservation button click by opening the CreateReservationScreen in edit mode"""
         res_id = self.table.item(row, 0).text()
         book_title = self.table.item(row, 1).text()
         username = self.table.item(row, 2).text()
         res_date = self.table.item(row, 3).text()
         
-        # Here you would typically open an edit dialog with the reservation data
-        QMessageBox.information(self, "Edit Reservation", 
-                              f"Would edit reservation:\n"
-                              f"Book: {book_title}\n"
-                              f"User: {username}\n"
-                              f"Date: {res_date}")
+        # Open the create reservation screen in edit mode
+        self.create_reservation_screen = CreateReservationScreen()
+        self.create_reservation_screen.setWindowTitle("Edit Reservation")
+        
+        # Find the book ID from the title
+        book_id = None
+        for i in range(self.create_reservation_screen.book_search_input.count()):
+            if self.create_reservation_screen.book_search_input.itemText(i) == book_title:
+                book_id = self.create_reservation_screen.book_search_input.itemData(i)
+                break
+        
+        # Set the fields with the reservation data
+        if book_id is not None:
+            self.create_reservation_screen.book_search_input.setCurrentIndex(i)
+            
+        # Set user ID and date
+        if username.isdigit():  # If username is actually a user ID
+            self.create_reservation_screen.user_id_input.setText(username)
+        
+        try:
+            self.create_reservation_screen.reservation_date_input.setDate(QDate.fromString(res_date, "yyyy-MM-dd"))
+        except:
+            # If date format is different, just use current date as fallback
+            self.create_reservation_screen.reservation_date_input.setDate(QDate.currentDate())
+        
+        # Connect the save signal to refresh the table
+        self.create_reservation_screen.reservation_added.connect(self.load_reservations)
+        
+        # Show the screen
+        self.create_reservation_screen.showMaximized()
 
-    def handle_cancel_reservation(self, row):
+    def handle_delete_reservation(self, row):
         res_id = self.table.item(row, 0).text()
         book_title = self.table.item(row, 1).text()
         

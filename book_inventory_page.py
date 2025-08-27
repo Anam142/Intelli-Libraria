@@ -195,10 +195,15 @@ class BookInventoryPage(QWidget):
         self.books_table.setColumnCount(7)
         self.books_table.setHorizontalHeaderLabels(["ID", "Title", "Author", "ISBN", "Edition", "Stock", "Actions"])
         
-        # Prefer stretch-based sizing to keep full width during interactions
-        self.books_table.setColumnWidth(0, 70)   # Give small sensible defaults
-        self.books_table.setColumnWidth(6, 160)  # Actions slightly wider
-        self.books_table.horizontalHeader().setStretchLastSection(True)
+        # Set column widths - ID and Actions columns have fixed width, others will stretch
+        self.books_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)  # ID
+        self.books_table.setColumnWidth(0, 50)   # ID column
+        self.books_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Fixed)  # Actions
+        self.books_table.setColumnWidth(6, 160)  # Actions column
+        
+        # Make other columns stretch to fill available space
+        for col in [1, 2, 3, 4, 5]:  # Title, Author, ISBN, Edition, Stock
+            self.books_table.horizontalHeader().setSectionResizeMode(col, QHeaderView.Stretch)
         self.books_table.verticalHeader().setVisible(False)
         self.books_table.setShowGrid(False)
         self.books_table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -237,9 +242,18 @@ class BookInventoryPage(QWidget):
         # Set header properties
         header = self.books_table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignCenter)
-        header.setStretchLastSection(True)
-        # Set all columns to stretch to table width
-        header.setSectionResizeMode(QHeaderView.Stretch)
+        
+        # Set column resize modes
+        header.setSectionResizeMode(0, QHeaderView.Fixed)  # ID column
+        self.books_table.setColumnWidth(0, 50)
+        
+        # Set Actions column to fixed width
+        header.setSectionResizeMode(6, QHeaderView.Fixed)
+        self.books_table.setColumnWidth(6, 180)  # Width for action buttons
+        
+        # Make other columns stretch
+        for col in range(1, 6):  # Title, Author, ISBN, Edition, Stock
+            header.setSectionResizeMode(col, QHeaderView.Stretch)
         
         # Set fixed row height
         self.books_table.verticalHeader().setDefaultSectionSize(48)
