@@ -69,17 +69,21 @@ class SidebarButton(QPushButton):
 class StatCard(QFrame):
     def __init__(self, title, value, color=None):
         super().__init__()
-        self.setMinimumWidth(150)  
-        self.setMaximumWidth(220)  
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.setMinimumWidth(180)  # Increased from 150
+        self.setMaximumWidth(240)  # Increased from 220
+        self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed)
         
-        # Default colors for different card types
+        # Store title and value for later use
+        self.title = title
+        self.value = value
+        
+        # Default colors for different card types - updated to pastel colors
         color_map = {
-            'books': '#4f46e5',
-            'users': '#10b981',
-            'borrowed': '#f59e0b',
-            'overdue': '#ef4444',
-            'default': '#3b82f6'
+            'books': '#e1bee7',  # Light purple
+            'users': '#bbdefb',  # Light blue
+            'borrowed': '#fff9c4',  # Light yellow
+            'overdue': '#ffcdd2',  # Light red
+            'default': '#b2ebf2'   # Light cyan
         }
         
         # Get the appropriate color based on the title
@@ -96,7 +100,7 @@ class StatCard(QFrame):
         
         self.setStyleSheet(f"""
             QFrame {{
-                background-color: #ffffff;
+                background-color: {card_color};
                 border-radius: 10px;
                 border: 1px solid #e5e7eb;
                 padding: 12px 10px;
@@ -112,25 +116,37 @@ class StatCard(QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         
-        # Title and value
+        # Create and configure title label
         title_label = QLabel(title.upper())
-        title_label.setFont(QFont("Segoe UI", 9, QFont.Bold))  
-        title_label.setStyleSheet(f"color: #111827; font-weight: 700; letter-spacing: 0.5px;")  
-        title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-
-        value_label = QLabel(str(value))
-        value_label.setFont(QFont("Segoe UI", 20, QFont.Bold))
-        value_label.setStyleSheet(f"color: #111827; font-weight: 700;")  
-        value_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        title_label.setWordWrap(True)
         
-        # Add a small colored line at the bottom
-        line = QFrame()
-        line.setFixedHeight(3)
-        line.setStyleSheet(f"background-color: {card_color}; border-radius: 2px;")
+        # Set font to Times New Roman and adjust size based on card type
+        font_size = 14 if 'member' in title.lower() else 12  # Larger font for members
+        title_label.setFont(QFont("Times New Roman", font_size, QFont.Bold))
+        
+        title_label.setStyleSheet("""
+            color: #111827; 
+            font-weight: 800; 
+            letter-spacing: 0.5px;
+            padding: 2px 0;
+            text-align: center;
+        """)
+        title_label.setAlignment(Qt.AlignCenter | Qt.AlignTop)
 
+        # Create and configure value label
+        value_label = QLabel(str(value))
+        value_font_size = 36 if 'member' in title.lower() else 32  # Larger font for members
+        value_label.setFont(QFont("Times New Roman", value_font_size, QFont.Bold))
+        value_label.setStyleSheet("""
+            color: #111827; 
+            font-weight: 800;
+            padding: 2px 0;
+            text-align: center;
+        """)
+        value_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        
         layout.addWidget(title_label)
         layout.addWidget(value_label)
-        layout.addWidget(line)
 
 class StatusBadge(QLabel):
     def __init__(self, status):
@@ -224,7 +240,7 @@ class Sidebar(QWidget):
         self.logout_btn.setCheckable(True)
         print(f"Logout button created: {self.logout_btn}")  # Debug
         
-        # Connect the click event with debug prints
+        # Connect the click event with debupyg prints
         def on_logout_clicked():
             print("Logout button clicked!")  # Debug
             # Always show the custom logout confirmation dialog
