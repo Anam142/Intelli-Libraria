@@ -71,19 +71,20 @@ class StatCard(QFrame):
         super().__init__()
         self.setMinimumWidth(180)  # Increased from 150
         self.setMaximumWidth(240)  # Increased from 220
+        self.setFixedHeight(140)  # Set a fixed height for all cards
         self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed)
         
         # Store title and value for later use
         self.title = title
         self.value = value
         
-        # Default colors for different card types - updated to pastel colors
+        # Set all cards to use the same color
         color_map = {
-            'books': '#e1bee7',  # Light purple
-            'users': '#bbdefb',  # Light blue
-            'borrowed': '#fff9c4',  # Light yellow
-            'overdue': '#ffcdd2',  # Light red
-            'default': '#b2ebf2'   # Light cyan
+            'books': '#F0D2DA',
+            'users': '#F0D2DA',
+            'borrowed': '#F0D2DA',
+            'overdue': '#F0D2DA',
+            'default': '#F0D2DA'
         }
         
         # Get the appropriate color based on the title
@@ -480,7 +481,7 @@ class DashboardWindow(QMainWindow):
         # Create the table with 5 columns
         table = QTableWidget(0, 5)  # Start with 0 rows, we'll add them dynamically
         table.setHorizontalHeaderLabels(["Book Title", "Author", "Borrower", "Due Date", "Status"])
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) 
         table.verticalHeader().setVisible(False)
         table.setEditTriggers(QTableWidget.NoEditTriggers)
         table.setSelectionMode(QTableWidget.NoSelection)
@@ -490,51 +491,77 @@ class DashboardWindow(QMainWindow):
         table.verticalHeader().setDefaultSectionSize(48)
         table.setMinimumHeight(400)
         
-        # Fetch and populate recent transactions
-        try:
-            from database import get_recent_transactions
-            transactions = get_recent_transactions(limit=10)  # Get up to 10 recent transactions
-            
-            # Set row count based on actual data
-            table.setRowCount(len(transactions))
-            
-            # Populate the table with transaction data
-            for row, (title, author, user_name, due_date, status) in enumerate(transactions):
-                # Create table items for each column
-                title_item = QTableWidgetItem(title)
-                author_item = QTableWidgetItem(author)
-                user_item = QTableWidgetItem(user_name)
-                due_date_item = QTableWidgetItem(due_date)
-                status_item = QTableWidgetItem(status)
+        # Function to load and refresh table data
+        def load_table_data():
+            try:
+                # Clear existing data
+                table.setRowCount(0)
                 
-                # Set text alignment
-                for item in [title_item, author_item, user_item, due_date_item, status_item]:
-                    item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                # Fetch recent transactions from database
+                from database import get_recent_transactions
+                transactions = get_recent_transactions(limit=10)  # Get up to 10 recent transactions
                 
-                # Add items to the table
-                table.setItem(row, 0, title_item)
-                table.setItem(row, 1, author_item)
-                table.setItem(row, 2, user_item)
-                table.setItem(row, 3, due_date_item)
-                table.setItem(row, 4, status_item)
+                if not transactions:
+                    # If no transactions, show a message
+                    table.setRowCount(1)
+                    no_data_item = QTableWidgetItem("No recent activity found")
+                    no_data_item.setTextAlignment(Qt.AlignCenter)
+                    table.setSpan(0, 0, 1, 5)  # Span all columns
+                    table.setItem(0, 0, no_data_item)
+                    return
                 
-                # Color code status
-                if status == 'Overdue':
-                    status_item.setForeground(QColor('#ef4444'))  # Red for overdue
-                    status_item.setFont(QFont('Arial', 9, QFont.Bold))
-                elif status == 'Issued':
-                    status_item.setForeground(QColor('#f59e0b'))  # Yellow for issued
-                elif status == 'Returned':
-                    status_item.setForeground(QColor('#10b981'))  # Green for returned
+                # Set row count based on actual data
+                table.setRowCount(len(transactions))
+                
+                # Populate the table with transaction data
+                for row, (title, author, user_name, due_date, status) in enumerate(transactions):
+                    # Create table items for each column
+                    title_item = QTableWidgetItem(title or "N/A")
+                    author_item = QTableWidgetItem(author or "N/A")
+                    user_item = QTableWidgetItem(user_name or "N/A")
+                    due_date_item = QTableWidgetItem(str(due_date) if due_date else "N/A")
+                    status_item = QTableWidgetItem(status or "N/A")
                     
-        except Exception as e:
-            print(f"Error loading recent transactions: {e}")
-            # Add a single row with error message if loading fails
-            table.setRowCount(1)
-            error_item = QTableWidgetItem("Error loading recent activity")
-            error_item.setTextAlignment(Qt.AlignCenter)
-            table.setSpan(0, 0, 1, 5)  # Span all columns
-            table.setItem(0, 0, error_item)
+                    # Set text alignment
+                    for item in [title_item, author_item, user_item, due_date_item, status_item]:
+                        item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                    
+                    # Add items to the table
+                    table.setItem(row, 0, title_item)
+                    table.setItem(row, 1, author_item)
+                    table.setItem(row, 2, user_item)
+                    table.setItem(row, 3, due_date_item)
+                    table.setItem(row, 4, status_item)
+                    
+                    # Color code status
+                    status_text = status.lower() if status else ""
+                    if 'overdue' in status_text:
+                        status_item.setForeground(QColor('#ef4444'))  # Red for overdue
+                        status_item.setFont(QFont('Arial', 9, QFont.Bold))
+                    elif 'issue' in status_text:
+                        status_item.setForeground(QColor('#f59e0b'))  # Yellow for issued
+                    elif 'return' in status_text:
+                        status_item.setForeground(QColor('#10b981'))  # Green for returned
+                        
+                    # Make the status text more readable
+                    if status:
+                        status_item.setText(status.capitalize())
+                        
+            except Exception as e:
+                print(f"Error loading recent transactions: {e}")
+                # Add a single row with error message if loading fails
+                table.setRowCount(1)
+                error_item = QTableWidgetItem(f"Error loading recent activity: {str(e)}")
+                error_item.setTextAlignment(Qt.AlignCenter)
+                table.setSpan(0, 0, 1, 5)  # Span all columns
+                table.setItem(0, 0, error_item)
+        
+        # Initial load of data
+        load_table_data()
+        
+        # Store the load function for later refresh
+        self.load_table_data = load_table_data
+        
         table.setStyleSheet("""
             QTableWidget {
                 background: #fff;
@@ -560,38 +587,16 @@ class DashboardWindow(QMainWindow):
                 font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
             }
         """)
-        activity_data = [
-            ("The Secret Garden", "Frances Hodgson Burnett", "Emily Carter", "2024-03-15", "Borrowed"),
-            ("Pride and Prejudice", "Jane Austen", "David Lee", "2024-03-20", "Available"),
-            ("To Kill a Mockingbird", "Harper Lee", "Olivia Brown", "2024-03-10", "Overdue"),
-            ("1984", "George Orwell", "Ethan Clark", "2024-03-25", "Borrowed"),
-            ("The Great Gatsby", "F. Scott Fitzgerald", "Sophia Green", "2024-03-18", "Available"),
-            ("The Catcher in the Rye", "J.D. Salinger", "Mia Davis", "2024-03-22", "Borrowed"),
-            ("The Hunger Games", "Suzanne Collins", "Julia Martin", "2024-03-12", "Overdue"),
-            ("The Fault in Our Stars", "John Green", "Noah Hall", "2024-03-28", "Available"),
-        ]
-        for row, (title, author, borrower, due_date, status) in enumerate(activity_data):
-            table.setItem(row, 0, QTableWidgetItem(title))
-            table.setItem(row, 1, QTableWidgetItem(author))
-            table.setItem(row, 2, QTableWidgetItem(borrower))
-            table.setItem(row, 3, QTableWidgetItem(due_date))
-            status_badge = StatusBadge(status)
-            wrapper = QWidget()
-            layout = QHBoxLayout(wrapper)
-            layout.addWidget(status_badge)
-            layout.setAlignment(Qt.AlignCenter)
-            layout.setContentsMargins(0, 0, 0, 0)
-            wrapper.setLayout(layout)
-            table.setCellWidget(row, 4, wrapper)
+        
+        # Add the table to the layout
         dashboard_layout.addWidget(table)
-    
-    # Removed IT Semesters section as requested
         dashboard_layout.addStretch()
         return scroll
 
     def show_dashboard(self):
+        # Refresh all dashboard data
         self.refresh_total_books()
-        # Refresh other KPIs as well
+        
         try:
             import database
             # Total books
@@ -613,8 +618,14 @@ class DashboardWindow(QMainWindow):
             od = database.get_overdue_count()
             od_label = self.overdue_card.findChildren(QLabel)[1]
             od_label.setText(str(od))
-        except Exception:
-            pass
+            
+            # Refresh the recent activity table
+            if hasattr(self, 'load_table_data'):
+                self.load_table_data()
+                
+        except Exception as e:
+            print(f"Error refreshing dashboard data: {e}")
+            
         self.pages_stack.setCurrentWidget(self.dashboard_content)
 
     def show_user_management(self):

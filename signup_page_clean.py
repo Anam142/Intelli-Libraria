@@ -102,14 +102,14 @@ class SignupForm(QWidget):
         signup_btn.clicked.connect(self.handle_signup)
         
         # Back to Login link below the Sign Up button
-        back_btn = QPushButton("Back to Login")
-        back_btn.setCursor(Qt.PointingHandCursor)
-        back_btn.setFlat(True)
-        back_btn.setStyleSheet(
+        self.back_btn = QPushButton("Back to Login")
+        self.back_btn.setCursor(Qt.PointingHandCursor)
+        self.back_btn.setFlat(True)
+        self.back_btn.setStyleSheet(
             "QPushButton { color: #2563eb; background: transparent; border: none; font-size: 13px; }"
             "QPushButton:hover { text-decoration: underline; }"
         )
-        back_btn.clicked.connect(self.handle_login)
+        self.back_btn.clicked.connect(self.handle_login)
         
         # Add widgets to layout
         layout.addWidget(title)
@@ -119,7 +119,7 @@ class SignupForm(QWidget):
         layout.addWidget(self.password_input)
         layout.addWidget(self.phone_input)
         layout.addWidget(signup_btn)
-        layout.addWidget(back_btn, 0, Qt.AlignCenter)
+        layout.addWidget(self.back_btn, 0, Qt.AlignCenter)
         layout.addStretch()
     
     def handle_signup(self):
@@ -271,7 +271,7 @@ class SignupForm(QWidget):
             # Delegate to the containing SignupPage, which routes back to LoginWindow
             self.parent.show_login()
 
-class SignupPage(QMainWindow):
+class SignupPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
@@ -279,19 +279,14 @@ class SignupPage(QMainWindow):
         self.init_ui()
     
     def init_ui(self):
-        self.setWindowTitle("Sign Up - Intelli Libraria")
-        self.setWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | 
-                          Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | 
-                          Qt.WindowCloseButtonHint)
-        self.setFixedSize(1280, 800)
+        self.setFixedSize(450, 500)  # Match the login card size
         
-        # Create central widget
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+        # Main layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         
         # Background
-        self.bg_label = QLabel(central_widget)
-        self.bg_label.setGeometry(0, 0, self.width(), self.height())
+        self.bg_label = QLabel(self)
         
         if os.path.exists(self.bg_image):
             pixmap = QPixmap(self.bg_image)
@@ -308,8 +303,11 @@ class SignupPage(QMainWindow):
         
         # Form
         self.form = SignupForm(self)
-        self.form.setParent(central_widget)
-        self.center_form()
+        layout.addWidget(self.form)
+        
+        # Connect back to login
+        if hasattr(self.form, 'back_btn'):
+            self.form.back_btn.clicked.connect(self.show_login)
     
     def center_form(self):
         self.form.move(
@@ -334,9 +332,6 @@ class SignupPage(QMainWindow):
             
             # Keep background at the bottom of the stack
             self.bg_label.lower()
-        
-        # Center the form
-        self.center_form()
     
     def show_login(self):
         if self.parent:

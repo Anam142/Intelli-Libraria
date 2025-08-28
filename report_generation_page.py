@@ -125,8 +125,8 @@ class ReportGenerationPage(QWidget):
         preview_label.setStyleSheet("margin-bottom: 8px; margin-top: 0px;")  # Remove extra top margin
         main_layout.addWidget(preview_label)
 
-        self.table = QTableWidget(5, 6)
-        self.table.setHorizontalHeaderLabels(["Title", "Author", "ISBN", "Available", "Total", "Actions"])
+        self.table = QTableWidget(5, 7)
+        self.table.setHorizontalHeaderLabels(["Title", "Author", "ISBN", "Available", "Total", "Actions", "Delete"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -185,7 +185,56 @@ class ReportGenerationPage(QWidget):
             self.table.setItem(row, 2, QTableWidgetItem(isbn))
             self.table.setItem(row, 3, QTableWidgetItem(available))
             self.table.setItem(row, 4, QTableWidgetItem(total))
-            
+            delete_button = QPushButton("Delete")
+            delete_button.setStyleSheet("""
+                QPushButton {
+                    background: #d32f2f;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 6px 12px;
+                    font-weight: 500;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    background: #b71c1c;
+                }
+                QPushButton:pressed {
+                    background: #8e0000;
+                }
+            """)
+            delete_button.clicked.connect(lambda checked, r=row: self._on_delete_clicked(r))
+            self.table.setCellWidget(row, 6, delete_button)
+
+    def _on_delete_clicked(self, row):
+        """Handle delete button click"""
+        title = self.table.item(row, 0).text()
+        reply = QMessageBox.question(
+            self, 
+            'Confirm Delete', 
+            f'Are you sure you want to delete "{title}"?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            try:
+                # Get the book ID or other identifier from the table
+                isbn = self.table.item(row, 2).text()  # Assuming ISBN is in column 2
+                
+                # Delete from database
+                database.execute_query(
+                    "DELETE FROM books WHERE isbn = ?",
+                    (isbn,)
+                )
+                
+                # Remove from the table
+                self.table.removeRow(row)
+                QMessageBox.information(self, "Success", f"Book '{title}' has been deleted successfully.")
+                
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to delete book: {str(e)}")
+
     def generate_report(self):
         """Generate report based on selected report type"""
         # Get the selected report type
@@ -205,6 +254,121 @@ class ReportGenerationPage(QWidget):
         from PyQt5.QtCore import QTimer
         QTimer.singleShot(1500, lambda: self._show_report_preview(selected_report))
     
+    def _show_inventory_report(self):
+        """Show inventory status report"""
+        # Clear existing data
+        self.table.setRowCount(0)
+        
+        # Set table headers
+        self.table.setColumnCount(6)
+        self.table.setHorizontalHeaderLabels(["Title", "Author", "ISBN", "Available", "Total", "Actions"])
+        
+        try:
+            # Fetch data from database
+            rows = database.execute_query(
+                """
+                SELECT title, author, isbn, stock as available, 
+                       (SELECT COUNT(*) FROM books b2 WHERE b2.isbn = b1.isbn) as total
+                FROM books b1
+                GROUP BY isbn
+                ORDER BY title
+                """
+            )
+            
+            # Populate table with data
+            self.table.setRowCount(len(rows))
+            for row, book in enumerate(rows):
+                self.table.setItem(row, 0, QTableWidgetItem(book['title']))
+                self.table.setItem(row, 1, QTableWidgetItem(book['author']))
+                self.table.setItem(row, 2, QTableWidgetItem(book['isbn']))
+                self.table.setItem(row, 3, QTableWidgetItem(str(book['available'])))
+                self.table.setItem(row, 4, QTableWidgetItem(str(book['total'])))
+                
+                # Add delete button
+                delete_btn = QPushButton("Delete")
+                delete_btn.setStyleSheet("""
+                    QPushButton {
+                        background: #d32f2f;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        font-size: 12px;
+                    }
+                    QPushButton:hover {
+                        background: #b71c1c;
+                    }
+                """)
+                delete_btn.clicked.connect(lambda checked, r=row: self._on_delete_clicked(r))
+                self.table.setCellWidget(row, 5, delete_btn)
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load inventory report: {str(e)}")
+    
+    def _show_borrowed_books_report(self):
+        """Show borrowed books report"""
+        # Clear existing data
+        self.table.setRowCount(0)
+        
+        # Set table headers
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels(["Title", "Borrower", "Borrow Date", "Due Date", "Days Left", "Status", "Actions"])
+        
+        try:
+            # Fetch data from database
+            rows = database.execute_query(
+                """
+                SELECT b.title, u.full_name as borrower, t.issue_date, t.due_date, t.status
+                FROM transactions t
+                JOIN books b ON t.book_id = b.id
+                JOIN users u ON t.user_id = u.id
+                WHERE t.status IN ('Borrowed', 'Overdue')
+                ORDER BY t.due_date
+                """
+            )
+            
+            # Populate table with data
+            self.table.setRowCount(len(rows))
+            for row, record in enumerate(rows):
+                self.table.setItem(row, 0, QTableWidgetItem(record['title']))
+                self.table.setItem(row, 1, QTableWidgetItem(record['borrower']))
+                self.table.setItem(row, 2, QTableWidgetItem(record['issue_date']))
+                self.table.setItem(row, 3, QTableWidgetItem(record['due_date']))
+                
+                # Calculate days left
+                from datetime import datetime
+                try:
+                    due_date = datetime.strptime(record['due_date'], '%Y-%m-%d').date()
+                    today = datetime.now().date()
+                    days_left = (due_date - today).days
+                    status = "Overdue" if days_left < 0 else "Borrowed"
+                    self.table.setItem(row, 4, QTableWidgetItem(str(abs(days_left))))
+                    self.table.setItem(row, 5, QTableWidgetItem(status))
+                except:
+                    self.table.setItem(row, 4, QTableWidgetItem("N/A"))
+                    self.table.setItem(row, 5, QTableWidgetItem(record['status']))
+                
+                # Add delete button
+                delete_btn = QPushButton("Delete")
+                delete_btn.setStyleSheet("""
+                    QPushButton {
+                        background: #d32f2f;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        font-size: 12px;
+                    }
+                    QPushButton:hover {
+                        background: #b71c1c;
+                    }
+                """)
+                delete_btn.clicked.connect(lambda checked, r=row: self._on_delete_clicked(r))
+                self.table.setCellWidget(row, 6, delete_btn)
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load borrowed books report: {str(e)}")
+    
     def _show_report_preview(self, report_type):
         """Show the preview of the generated report"""
         # Reset button state
@@ -216,215 +380,3 @@ class ReportGenerationPage(QWidget):
             self._show_inventory_report()
         elif report_type == "Borrowed Books":
             self._show_borrowed_books_report()
-        elif report_type == "Overdue Books":
-            self._show_overdue_books_report()
-        elif report_type == "User Activity":
-            self._show_user_activity_report()
-    
-    def _show_inventory_report(self):
-        """Show inventory status report"""
-        # Set table headers
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["Title", "Author", "ISBN", "Available", "Total"])
-        
-        # Live data from database
-        try:
-            rows = database.execute_query(
-                "SELECT title, author, COALESCE(isbn,'') AS isbn, COALESCE(stock,0) AS stock FROM books ORDER BY title"
-            )
-            data = [(r["title"], r["author"], r["isbn"], str(r["stock"]), str(r["stock"])) for r in rows]
-        except Exception:
-            data = []
-        
-        self._populate_table(data)
-    
-    def _show_borrowed_books_report(self):
-        """Show borrowed books report"""
-        self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(["Title", "Borrower", "Borrow Date", "Due Date", "Days Left", "Status"])
-        
-        # Try to load from transactions if available
-        data = []
-        try:
-            # Check if transactions exists
-            rows = database.execute_query(
-                """
-                SELECT b.title AS title,
-                       u.full_name AS borrower,
-                       t.issue_date AS borrow_date,
-                       t.due_date AS due_date,
-                       t.status AS status
-                FROM transactions t
-                JOIN books b ON b.id = t.book_id
-                JOIN users u ON u.id = t.user_id
-                WHERE LOWER(t.status) IN ('issued','borrowed')
-                ORDER BY t.issue_date DESC
-                """
-            )
-            for r in rows:
-                due = r.get("due_date") or ""
-                # Days left calculation best-effort
-                try:
-                    from datetime import date, datetime
-                    today = date.today()
-                    days_left = (datetime.strptime(due, "%Y-%m-%d").date() - today).days
-                except Exception:
-                    days_left = ""
-                data.append((r["title"], r.get("borrower", ""), r.get("borrow_date", ""), due, str(days_left), r.get("status", "")))
-        except Exception:
-            data = []
-        
-        self._populate_table(data)
-    
-    def _show_overdue_books_report(self):
-        """Show overdue books report"""
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["Title", "Borrower", "Due Date", "Days Overdue", "Fine"])
-        
-        data = []
-        try:
-            rows = database.execute_query(
-                """
-                SELECT b.title AS title,
-                       u.full_name AS borrower,
-                       t.due_date AS due_date
-                FROM transactions t
-                JOIN books b ON b.id = t.book_id
-                JOIN users u ON u.id = t.user_id
-                WHERE LOWER(t.status) = 'overdue'
-                ORDER BY t.due_date DESC
-                """
-            )
-            from datetime import date, datetime
-            today = date.today()
-            for r in rows:
-                due = r.get("due_date") or ""
-                try:
-                    days_over = (today - datetime.strptime(due, "%Y-%m-%d").date()).days
-                except Exception:
-                    days_over = ""
-                data.append((r["title"], r.get("borrower", ""), due, str(days_over), ""))
-        except Exception as e:
-            print(f"Error generating overdue books report: {e}")
-            data = []
-        
-        self._populate_table(data)
-    
-    def _show_user_activity_report(self):
-        """Show user activity report"""
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["User", "Books Borrowed", "Books Returned", "Overdue Books", "Total Fines"])
-        
-        # Sample data
-        data = [
-            ("John Doe", "12", "10", "2", "$5.00"),
-            ("Jane Smith", "8", "7", "1", "$2.50"),
-            ("Bob Johnson", "15", "14", "0", "$0.00"),
-        ]
-        
-        self._populate_table(data)
-    
-    def _on_edit_clicked(self, row):
-        """Handle edit button click"""
-        # Get the book data from the row
-        title = self.table.item(row, 0).text()
-        author = self.table.item(row, 1).text()
-        isbn = self.table.item(row, 2).text()
-        
-        # Here you would typically open an edit dialog with the book data
-        QMessageBox.information(self, "Edit Book", 
-                              f"Would edit book: {title}\n"
-                              f"Author: {author}\n"
-                              f"ISBN: {isbn}")
-    
-    def _on_delete_clicked(self, row):
-        """Handle delete button click"""
-        # Get the book title for confirmation
-        title = self.table.item(row, 0).text()
-        
-        # Ask for confirmation
-        reply = QMessageBox.question(
-            self, 'Delete Book',
-            f'Are you sure you want to delete "{title}"?',
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-        )
-        
-        if reply == QMessageBox.Yes:
-            # Here you would typically delete the book from the database
-            # For now, just remove the row from the table
-            self.table.removeRow(row)
-            QMessageBox.information(self, "Success", f"Book '{title}' has been deleted.")
-    
-    def _populate_table(self, data):
-        """Populate the table with data"""
-        self.table.setRowCount(len(data))
-        for row, row_data in enumerate(data):
-            # Add regular data columns
-            for col in range(min(len(row_data), 5)):  # Only process up to column 4 (0-4)
-                value = row_data[col] if col < len(row_data) else ""
-                item = QTableWidgetItem(str(value))
-                # Style overdue items in red
-                if value in ["Overdue", "Due Today"] or (isinstance(value, str) and value.startswith("-")):
-                    item.setForeground(QColor("#d32f2f"))
-                self.table.setItem(row, col, item)
-            
-            # Add action buttons
-            actions_widget = QWidget()
-            actions_layout = QHBoxLayout()
-            actions_layout.setContentsMargins(5, 0, 5, 0)
-            actions_layout.setSpacing(5)
-            
-            # Edit button
-            edit_btn = QPushButton()
-            edit_btn.setIcon(QIcon(":/icons/edit.svg"))
-            edit_btn.setToolTip("Edit")
-            edit_btn.setStyleSheet("""
-                QPushButton {
-                    background: #1976d2;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 4px;
-                    min-width: 24px;
-                    max-width: 24px;
-                    min-height: 24px;
-                    max-height: 24px;
-                }
-                QPushButton:hover {
-                    background: #1565c0;
-                }
-                QPushButton:pressed {
-                    background: #0d47a1;
-                }
-            """)
-            edit_btn.clicked.connect(lambda checked, r=row: self._on_edit_clicked(r))
-            
-            # Delete button
-            delete_btn = QPushButton()
-            delete_btn.setIcon(QIcon(":/icons/delete.svg"))
-            delete_btn.setToolTip("Delete")
-            delete_btn.setStyleSheet("""
-                QPushButton {
-                    background: #d32f2f;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 4px;
-                    min-width: 24px;
-                    max-width: 24px;
-                    min-height: 24px;
-                    max-height: 24px;
-                }
-                QPushButton:hover {
-                    background: #b71c1c;
-                }
-                QPushButton:pressed {
-                    background: #7f0000;
-                }
-            """)
-            delete_btn.clicked.connect(lambda checked, r=row: self._on_delete_clicked(r))
-            
-            actions_layout.addWidget(edit_btn)
-            actions_layout.addWidget(delete_btn)
-            actions_widget.setLayout(actions_layout)
-            actions_widget.setStyleSheet("background: transparent;")
-            
-            self.table.setCellWidget(row, 5, actions_widget)

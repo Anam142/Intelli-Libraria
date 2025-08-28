@@ -8,16 +8,22 @@ from PyQt5.QtGui import QPixmap, QFont, QPainter, QIcon, QColor
 from PyQt5.QtCore import Qt, pyqtSignal
 from signup_page_clean import SignupPage
 
+from PyQt5.QtCore import pyqtSignal
+
 class BackgroundWidget(QWidget):
     """A widget that draws a scaled background image."""
+    resized = pyqtSignal()  # Signal emitted when the widget is resized
+    
     def __init__(self, pixmap_path, parent=None):
         super().__init__(parent)
         self.pixmap = QPixmap(pixmap_path)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def resizeEvent(self, event):
         """Handle window resize events to update the background."""
-        self.update()
         super().resizeEvent(event)
+        self.resized.emit()  # Emit the resized signal
+        self.update()
         
     def paintEvent(self, event):
         """Paints the background image, scaled to cover the entire widget."""
@@ -54,30 +60,18 @@ class LoginWindow(QMainWindow):
         # Enable high DPI scaling
         self.setAttribute(Qt.WA_TranslucentBackground)
         
-        # Set window flags for standard window controls
+        # Set window flags for standard window controls with title bar
         self.setWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | 
                      Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | 
                   Qt.WindowCloseButtonHint)
         
+        # Set minimum window size to match dashboard
+        self.setMinimumSize(1200, 800)
+        
         # Get the screen geometry
         screen = QApplication.primaryScreen().availableGeometry()
+        self.screen_geometry = screen
         
-        # Set window size to a reasonable size and allow resizing; don't oversize screen
-        min_width = 1000
-        min_height = 650
-        width = max(min_width, min(screen.width() - 80, int(screen.width() * 0.85)))
-        height = max(min_height, min(screen.height() - 80, int(screen.height() * 0.85)))
-        
-        # Center the window
-        x = (screen.width() - width) // 2
-        y = (screen.height() - height) // 2
-        
-        # Set window geometry
-        self.setGeometry(x, y, width, height)
-        
-        # Show the window
-        self.show()
-
         # Resolve default background path if not provided
         import os as _os
         if bg_image_path is None:
@@ -94,30 +88,101 @@ class LoginWindow(QMainWindow):
 
         # Set up the background
         self.background = BackgroundWidget(bg_image_path, self)
-        self.setCentralWidget(self.background)
         
-        # Create main layout for the background and center all content
-        main_layout = QVBoxLayout(self.background)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-        main_layout.setAlignment(Qt.AlignCenter)
+        # Create a widget to hold everything
+        container = QWidget()
+        container_layout = QHBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+        
+        # Add the background
+        container_layout.addWidget(self.background)
+        
+        # Create a container for the login card
+        card_container = QWidget()
+        card_container.setFixedSize(450, 500)  # Match the size of the login card
+        
+        # Create a layout for the card container that will center its contents
+        card_layout = QVBoxLayout(card_container)
+        card_layout.setContentsMargins(0, 0, 0, 0)
+        card_layout.setSpacing(0)
         
         # Create the stacked widget for login/signup
         self.stacked_widget = QStackedWidget()
+        self.stacked_widget.setFixedSize(450, 500)  # Fixed size for the stacked widget
         
         # Create the login card
         self.login_card = QWidget()
+        self.login_card.setFixedSize(450, 500)  # Fixed size for the login card
         self.setup_login_card()
+        
+        # Add the login card to the stacked widget
         self.stacked_widget.addWidget(self.login_card)
-        # Let the stacked widget size itself to the card and allow the layout to center it
-        self.stacked_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
-
-        # Add stacked widget directly to the main layout centered
-        main_layout.addWidget(self.stacked_widget, 0, Qt.AlignHCenter | Qt.AlignVCenter)
         
         # Create the signup page
         self.signup_page = SignupPage(self)
         self.stacked_widget.addWidget(self.signup_page)
+        
+        # Add the stacked widget to the card container
+        card_layout.addWidget(self.stacked_widget, 0, Qt.AlignCenter)
+        
+        # Create an overlay widget to hold the card
+        overlay = QWidget()
+        overlay_layout = QVBoxLayout(overlay)
+        overlay_layout.setContentsMargins(0, 0, 0, 0)
+        overlay_layout.addWidget(card_container, 0, Qt.AlignCenter)
+        
+        # Store overlay as instance variable for resize events
+        self.overlay = overlay
+        self.overlay.setParent(self.background)
+        self.overlay.setGeometry(self.background.rect())
+        self.overlay.raise_()
+        
+        # Connect resize event
+        self.background.resized.connect(self.update_overlay_geometry)
+        
+        # Set the main window's central widget
+        self.setCentralWidget(container)
+        
+        # Show the window and position it slightly lower to show the title bar
+        screen = QApplication.primaryScreen().availableGeometry()
+        title_bar_height = 30  # Approximate title bar height
+        
+        # Position window slightly lower to show title bar
+        self.showNormal()  # First show normal to get proper window frame
+        self.resize(1200, 800)  # Set initial size
+        
+        # Position window with title bar fully visible
+        self.move(0, 0)
+        
+        # Then maximize the window
+        self.showMaximized()
+        
+    def showEvent(self, event):
+        """Handle the show event to ensure proper window state and position."""
+        super().showEvent(event)
+        
+        # Ensure window is maximized
+        if self.windowState() != Qt.WindowMaximized:
+            self.setWindowState(Qt.WindowMaximized)
+            
+        # Apply a small offset to show the title bar
+        self.setGeometry(0, 1, self.width(), self.height())
+    
+    def update_overlay_geometry(self):
+        """Update the overlay geometry when window is resized."""
+        if hasattr(self, 'overlay') and self.overlay and hasattr(self, 'background'):
+            # Get the current window geometry
+            window_rect = self.rect()
+            self.overlay.setGeometry(window_rect)
+            
+            # Ensure the card container is centered in the window
+            if hasattr(self, 'card_container'):
+                self.card_container.move(
+                    (window_rect.width() - self.card_container.width()) // 2,
+                    (window_rect.height() - self.card_container.height()) // 2
+                )
+        
         self.center_window()
 
     def setup_login_card(self):
@@ -217,10 +282,11 @@ class LoginWindow(QMainWindow):
         self.login_card.setGraphicsEffect(shadow)
         
         # --- Layout for the card ---
+        self.login_card.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         card_layout = QVBoxLayout(self.login_card)
-        # Minimal margins and spacing
-        card_layout.setContentsMargins(30, 0, 30, 10)  # No top margin
-        card_layout.setSpacing(0)  # No spacing between widgets
+        # Adjusted margins and spacing for better visual hierarchy
+        card_layout.setContentsMargins(30, 20, 30, 20)  # Added top margin for better spacing
+        card_layout.setSpacing(20)  # Add consistent spacing between widgets
         card_layout.setAlignment(Qt.AlignCenter)
 
         # Title container with pill shape - minimal spacing
@@ -236,8 +302,9 @@ class LoginWindow(QMainWindow):
         title.setObjectName("title_label")
         title_layout.addWidget(title, 0, Qt.AlignCenter)
         
-        # Add title container with no extra spacing
+        # Add title container with spacing
         card_layout.addWidget(title_container)
+        card_layout.addSpacing(10)  # Add space below the title
 
         # Username input (used for login)
         self.username = QLineEdit()
@@ -383,30 +450,137 @@ class LoginWindow(QMainWindow):
                   int((screen.height() - size.height()) / 2))
 
     def open_forgot_password_dialog(self):
-        """Open a simple dialog to start the password reset flow."""
+        """Open a styled dialog for password reset."""
         dialog = QDialog(self)
         dialog.setWindowTitle("Reset Password")
         dialog.setModal(True)
+        dialog.setFixedSize(450, 280)
+        
+        # Center dialog
+        frame_geom = dialog.frameGeometry()
+        center_point = QApplication.desktop().availableGeometry().center()
+        frame_geom.moveCenter(center_point)
+        dialog.move(frame_geom.topLeft())
+        
+        # Main layout
         layout = QVBoxLayout(dialog)
-        info = QLabel("Enter your email or username. We'll send reset instructions if available.")
+        layout.setContentsMargins(30, 30, 30, 25)
+        layout.setSpacing(20)
+        
+        # Title
+        title = QLabel("Reset Your Password")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #1f2937;")
+        layout.addWidget(title)
+        
+        # Info text
+        info = QLabel("Enter your email or username. We'll send reset instructions if the account exists.")
         info.setWordWrap(True)
+        info.setStyleSheet("color: #4b5563; font-size: 14px; margin-bottom: 15px;")
         layout.addWidget(info)
-        input_field = QLineEdit()
-        input_field.setPlaceholderText("Email or Username")
-        layout.addWidget(input_field)
+        
+        # Create a simple QLineEdit with minimal styling
+        self.email_input = QLineEdit()
+        self.email_input.setPlaceholderText("Email or Username")
+        self.email_input.setMinimumHeight(45)
+        self.email_input.setStyleSheet("""
+            QLineEdit {
+                padding: 10px 15px;
+                font-size: 15px;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                margin-bottom: 15px;
+            }
+        """)
+        layout.addWidget(self.email_input)
+
+        # Button row
         btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+        
+        # Cancel button
         cancel_btn = QPushButton("Cancel")
-        submit_btn = QPushButton("Send Link")
-        btn_row.addStretch(1)
+        cancel_btn.setFixedHeight(44)
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f3f4f6;
+                color: #4b5563;
+                padding: 0 24px;
+                border-radius: 8px;
+                border: 1.5px solid #d1d5db;
+                font-weight: 500;
+                font-size: 15px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #e5e7eb;
+            }
+            QPushButton:pressed {
+                background-color: #d1d5db;
+            }
+        """)
+        
+        # Submit button
+        submit_btn = QPushButton("Send Reset Link")
+        submit_btn.setFixedHeight(44)
+        submit_btn.setCursor(Qt.PointingHandCursor)
+        submit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2563eb;
+                color: white;
+                padding: 0 24px;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 15px;
+                border: none;
+                min-width: 140px;
+            }
+            QPushButton:hover {
+                background-color: #1d4ed8;
+            }
+            QPushButton:pressed {
+                background-color: #1e40af;
+            }
+        """)
+        
+        # Add buttons to layout with stretch for right alignment
+        btn_row.addStretch()
         btn_row.addWidget(cancel_btn)
         btn_row.addWidget(submit_btn)
         layout.addLayout(btn_row)
 
         def on_submit():
-            QMessageBox.information(self, "Password Reset", "If the account exists, reset instructions have been sent.")
-            dialog.accept()
+            email = self.email_input.text().strip()
+            if not email:
+                QMessageBox.warning(dialog, "Input Required", "Please enter your email or username.")
+                return
+                
+            # Show success message
+            msg = QMessageBox(dialog)
+            msg.setIcon(QMessageBox.Information)
+            msg.setWindowTitle("Reset Email Sent")
+            msg.setText("If an account exists with that email, we've sent password reset instructions.")
+            msg.setStandardButtons(QMessageBox.Ok)
+            msg.setDefaultButton(QMessageBox.Ok)
+            msg.buttonClicked.connect(dialog.accept)
+            msg.exec_()
+            
         submit_btn.clicked.connect(on_submit)
         cancel_btn.clicked.connect(dialog.reject)
+        
+        # Set focus to the input field when dialog opens
+        self.email_input.setFocus()
+        # Ensure the input field can receive focus and text input
+        self.email_input.setFocusPolicy(Qt.StrongFocus)
+        self.email_input.setAttribute(Qt.WA_InputMethodEnabled, True)
+        
+        # Make return key trigger the submit button
+        self.email_input.returnPressed.connect(on_submit)
+        
+        # Activate the window and ensure it has focus
+        dialog.activateWindow()
+        dialog.raise_()
+        
         dialog.exec_()
 
 if __name__ == '__main__':

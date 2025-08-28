@@ -53,6 +53,30 @@ class UserFeedbackPage(QWidget):
         
         self.initUI()
 
+    def slider_mouse_press_event(self, event):
+        """Handle mouse press events on the slider to set precise values"""
+        # Get the slider's style
+        style = self.rating_slider.style()
+        opt = QStyleOptionSlider()
+        self.rating_slider.initStyleOption(opt)
+        
+        # Get the available space for the slider groove
+        available = style.pixelMetric(QStyle.PM_SliderSpaceAvailable, opt, self.rating_slider)
+        
+        # Calculate the position of the click relative to the slider
+        pos = event.pos().x()
+        
+        # Calculate the value based on the click position
+        min_val = self.rating_slider.minimum()
+        max_val = self.rating_slider.maximum()
+        val = QStyle.sliderValueFromPosition(min_val, max_val, pos, available, 0)
+        
+        # Set the slider value
+        self.rating_slider.setValue(val)
+        
+        # Call the original mouse press event
+        QSlider.mousePressEvent(self.rating_slider, event)
+    
     def initUI(self):
         # Clear any existing items in the layout
         while self.layout.count():
@@ -173,8 +197,19 @@ class UserFeedbackPage(QWidget):
         self.rating_slider.setMinimum(1)
         self.rating_slider.setMaximum(5)
         self.rating_slider.setValue(3)
+        self.rating_slider.setPageStep(1)  # Ensure page step is 1 for better keyboard navigation
+        self.rating_slider.setSingleStep(1)  # Ensure single step is 1
         self.rating_slider.setTickPosition(QSlider.TicksBelow)
         self.rating_slider.setTickInterval(1)
+        
+        # Enable tracking to get immediate value changes
+        self.rating_slider.setTracking(True)
+        
+        # Enable mouse tracking for better click handling
+        self.rating_slider.setMouseTracking(True)
+        
+        # Handle mouse press events for better click accuracy
+        self.rating_slider.mousePressEvent = self.slider_mouse_press_event
         self.rating_slider.setStyleSheet("""
             QSlider::groove:horizontal {
                 border: none;
@@ -369,6 +404,9 @@ class UserFeedbackPage(QWidget):
             table_label.setText(f"Feedback History • {n} book(s) in catalog")
         except Exception:
             pass
+            
+        # Load sample data into the table
+        self.load_sample_data()
 
     def load_sample_data(self):
         """Load sample feedback data into the table"""

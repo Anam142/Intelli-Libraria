@@ -202,15 +202,15 @@ class ReservationManagementPage(QWidget):
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # Actions
         
         # Set minimum width for the actions column to prevent cutting off buttons
-        header.setMinimumSectionSize(220)  # Increased to accommodate better button spacing
-        self.table.setColumnWidth(4, 220)  # Increased fixed width for actions column
+        header.setMinimumSectionSize(240)  # Increased to accommodate better button spacing
+        self.table.setColumnWidth(4, 240)  # Increased fixed width for actions column
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionMode(QTableWidget.NoSelection)
         self.table.setShowGrid(False)
         self.table.setAlternatingRowColors(True)
         self.table.setFocusPolicy(Qt.NoFocus)
-        self.table.verticalHeader().setDefaultSectionSize(60)  # Reduced row height for more professional look
+        self.table.verticalHeader().setDefaultSectionSize(70)  # Increased row height to prevent button cut-off
         self.table.setColumnHidden(0, True) # Hide ID column
         self.table.setStyleSheet("""
             QTableWidget {
@@ -224,7 +224,7 @@ class ReservationManagementPage(QWidget):
             }
             QTableWidget::item {
                 border-bottom: 1px solid #e5e7eb;
-                padding: 10px 8px;
+                padding: 6px 8px 8px 8px;
             }
             QHeaderView::section {
                 background: #f9fafb;
@@ -238,13 +238,21 @@ class ReservationManagementPage(QWidget):
             }
             QTableWidget QPushButton {
                 border-radius: 16px;
-                min-width: 80px;
-                height: 32px;
-                padding: 6px 12px;
+                min-width: 75px;
+                min-height: 32px;
+                padding: 4px 12px;
                 font-size: 13px;
                 font-weight: 600;
-                margin: 0 6px;
+                margin: 4px 6px;
                 border: none;
+                background-color: #1976d2;
+                color: white;
+            }
+            QTableWidget QPushButton:hover {
+                background-color: #1565c0;
+            }
+            QTableWidget QPushButton:pressed {
+                background-color: #0d47a1;
             }
         """)
         main_layout.addWidget(self.table)
@@ -298,14 +306,16 @@ class ReservationManagementPage(QWidget):
                 background: transparent;
                 margin: 2px 0;
                 border: none;
+                border-radius: 0;
             }
         """)
         actions_layout = QHBoxLayout(actions_widget)
-        actions_layout.setContentsMargins(10, 6, 10, 6)
-        actions_layout.setSpacing(6)  # Reduced spacing between buttons
+        actions_layout.setContentsMargins(4, 0, 4, 0)  # Reduced side margins
+        actions_layout.setSpacing(2)  # Minimal spacing between buttons
 
         # Edit button
-        edit_btn = QPushButton("Edit")
+        edit_btn = QPushButton()
+        edit_btn.setText("Edit")
         edit_btn.setIcon(QIcon(":/icons/edit.svg"))
         edit_btn.setToolTip("Edit")
         edit_btn.setCursor(Qt.PointingHandCursor)
@@ -316,15 +326,11 @@ class ReservationManagementPage(QWidget):
                 border: none;
                 border-radius: 16px;
                 padding: 6px 12px;
-                min-width: 80px;
-                height: 32px;
+                min-width: 75px;
+                min-height: 32px;
                 font-size: 13px;
                 font-weight: 600;
-                margin-right: 6px;
-                border-top-right-radius: 16px;
-                border-bottom-right-radius: 16px;
-                border-top-left-radius: 16px;
-                border-bottom-left-radius: 16px;
+                margin-right: 2px;
             }
             QPushButton:hover {
                 background: #1565c0;
@@ -336,7 +342,8 @@ class ReservationManagementPage(QWidget):
         edit_btn.clicked.connect(lambda checked, r=row: self.handle_edit_reservation(r))
 
         # Delete button
-        delete_btn = QPushButton("Delete")
+        delete_btn = QPushButton()
+        delete_btn.setText("Delete")
         delete_btn.setIcon(QIcon(":/icons/delete.svg"))
         delete_btn.setToolTip("Delete")
         delete_btn.setCursor(Qt.PointingHandCursor)
@@ -347,15 +354,11 @@ class ReservationManagementPage(QWidget):
                 border: none;
                 border-radius: 16px;
                 padding: 6px 12px;
-                min-width: 80px;
-                height: 32px;
+                min-width: 75px;
+                min-height: 32px;
                 font-size: 13px;
                 font-weight: 600;
-                margin-left: 6px;
-                border-top-right-radius: 16px;
-                border-bottom-right-radius: 16px;
-                border-top-left-radius: 16px;
-                border-bottom-left-radius: 16px;
+                margin-left: 2px;
             }
             QPushButton:hover {
                 background: #b71c1c;
