@@ -3,6 +3,12 @@ from datetime import datetime, timedelta
 from passlib.hash import bcrypt
 from enum import Enum
 import logging
+from database import (
+    create_connection,
+    get_borrowed_books_count,
+    get_book_by_id,
+    get_user_by_id
+)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -120,15 +126,16 @@ class LibraryBackend:
             return None
     
     # Book Management
-    def add_book(self, isbn, title, author, quantity=1):
+    def add_book(self, isbn, title, author, quantity=1, edition='1st Edition'):
         """Add a new book to the library."""
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    INSERT INTO books (isbn, title, author, available_quantity, total_quantity)
+                    INSERT INTO books (isbn, title, author, stock, edition)
                     VALUES (?, ?, ?, ?, ?)
-                ''', (isbn, title, author, quantity, quantity))
+                ''', (isbn, title, author, quantity, edition))
+                conn.commit()
                 return cursor.lastrowid
         except sqlite3.IntegrityError as e:
             logger.error(f"Book addition failed: {e}")
@@ -137,6 +144,7 @@ class LibraryBackend:
     def search_books(self, query=None):
         """Search for books by title, author, or ISBN."""
         with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row  # This enables column access by name
             cursor = conn.cursor()
             if query:
                 query = f"%{query}%"
@@ -147,75 +155,192 @@ class LibraryBackend:
             else:
                 cursor.execute('SELECT * FROM books')
             
-            columns = [col[0] for col in cursor.description]
-            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+            return [dict(row) for row in cursor.fetchall()]
     
     # Borrowing & Returning
     def borrow_book(self, user_id, book_id, days=14):
-        """Borrow a book."""
-        with self._get_connection() as conn:
-            try:
+        """Borrow a book.
+        
+        Args:
+            user_id: ID of the user borrowing the book
+            book_id: ID of the book to borrow
+            days: Number of days the book can be borrowed for (default: 14)
+            
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        try:
+            with self._get_connection() as conn:
+                conn.row_factory = sqlite3.Row  # Enable column access by name
                 cursor = conn.cursor()
-                due_date = datetime.now() + timedelta(days=days)
                 
-                # Check if book is available
+                # First, verify the book exists and is available
                 cursor.execute('''
-                    UPDATE books 
-                    SET available_quantity = available_quantity - 1
-                    WHERE id = ? AND available_quantity > 0
-                    RETURNING id
+                    SELECT id, title, stock 
+                    FROM books 
+                    WHERE id = ?
                 ''', (book_id,))
                 
-                if not cursor.fetchone():
-                    return False
+                book = cursor.fetchone()
+                if not book:
+                    msg = f"Book with ID {book_id} not found"
+                    logger.error(msg)
+                    return False, msg
                 
-                # Create transaction
+                book_dict = dict(book)
+                stock = book_dict.get('stock', 0)
+                    
+                if stock <= 0:
+                    msg = f"Book '{book_dict.get('title', 'Unknown')}' is out of stock (Stock: {stock})"
+                    logger.warning(msg)
+                    return False, msg
+                
+                # Check if user exists and is active
                 cursor.execute('''
-                    INSERT INTO transactions (user_id, book_id, due_date)
-                    VALUES (?, ?, ?)
-                ''', (user_id, book_id, due_date))
+                    SELECT id, full_name, status
+                    FROM users 
+                    WHERE id = ?
+                ''', (user_id,))
                 
-                conn.commit()
-                return True
+                user = cursor.fetchone()
+                if not user:
+                    msg = f"User with ID {user_id} not found"
+                    logger.error(msg)
+                    return False, msg
+                    
+                user_dict = dict(user)
                 
-            except sqlite3.Error as e:
-                conn.rollback()
-                logger.error(f"Error borrowing book: {e}")
-                return False
-    
-    def return_book(self, transaction_id):
-        """Return a borrowed book."""
-        with self._get_connection() as conn:
-            try:
-                cursor = conn.cursor()
+                # Check if user account is active
+                if user_dict.get('status', '').lower() != 'active':
+                    msg = f"User account is not active (Status: {user_dict.get('status', 'Unknown')})"
+                    logger.warning(msg)
+                    return False, msg
                 
-                # Update transaction
+                # Check if user has reached borrow limit
                 cursor.execute('''
-                    UPDATE transactions 
-                    SET return_date = CURRENT_TIMESTAMP,
-                        status = 'returned'
-                    WHERE id = ? AND return_date IS NULL
-                    RETURNING book_id
-                ''', (transaction_id,))
+                    SELECT COUNT(*) as count 
+                    FROM transactions 
+                    WHERE user_id = ? 
+                    AND status = 'borrowed'
+                ''', (user_id,))
                 
-                book_id = cursor.fetchone()
-                if not book_id:
-                    return False
+                borrowed_count = cursor.fetchone()['count']
+                max_borrow_limit = 5  # Default borrow limit
                 
-                # Update book availability
+                if borrowed_count >= max_borrow_limit:
+                    msg = f"User has reached the maximum borrow limit of {max_borrow_limit} books"
+                    logger.warning(msg)
+                    return False, msg
+                
+                # Calculate due date
+                due_date = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+                
+                # Start transaction
+                cursor.execute('BEGIN TRANSACTION')
+                
+                # Update book quantity
                 cursor.execute('''
                     UPDATE books 
-                    SET available_quantity = available_quantity + 1
-                    WHERE id = ?
-                ''', (book_id[0],))
+                    SET stock = stock - 1 
+                    WHERE id = ? AND stock > 0
+                ''', (book_id,))
+                
+                if cursor.rowcount == 0:
+                    msg = f"Failed to update stock for book {book_id}. It may be out of stock."
+                    logger.error(msg)
+                    conn.rollback()
+                    return False, msg
+                
+                # Create transaction record
+                now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                cursor.execute('''
+                    INSERT INTO transactions 
+                    (user_id, book_id, borrow_date, due_date, status, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, 'borrowed', ?, ?)
+                ''', (user_id, book_id, now, due_date, now, now))
                 
                 conn.commit()
-                return True
+                logger.info(f"Successfully borrowed book {book_id} for user {user_id}")
+                return True, "Book borrowed successfully"
                 
-            except sqlite3.Error as e:
-                conn.rollback()
-                logger.error(f"Error returning book: {e}")
-                return False
+        except sqlite3.Error as e:
+            logger.error(f"Database error in borrow_book: {str(e)}")
+            return False, f"Database error: {str(e)}"
+        except Exception as e:
+            logger.error(f"Unexpected error in borrow_book: {str(e)}")
+            return False, f"An unexpected error occurred: {str(e)}"
+    
+    def return_book(self, transaction_id):
+        """Return a borrowed book.
+        
+        Args:
+            transaction_id: ID of the transaction to return
+            
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        try:
+            with self._get_connection() as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                # Start transaction
+                cursor.execute('BEGIN TRANSACTION')
+                
+                # Get transaction details
+                cursor.execute('''
+                    SELECT id, book_id, status 
+                    FROM transactions 
+                    WHERE id = ?
+                ''', (transaction_id,))
+                
+                transaction = cursor.fetchone()
+                if not transaction:
+                    return False, "Transaction not found"
+                    
+                transaction = dict(transaction)
+                
+                # Check if already returned
+                if transaction.get('status') == 'returned':
+                    return False, "This book has already been returned"
+                
+                # Update transaction
+                now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                cursor.execute('''
+                    UPDATE transactions 
+                    SET return_date = ?,
+                        status = 'returned',
+                        updated_at = ?
+                    WHERE id = ? 
+                    AND return_date IS NULL
+                ''', (now, now, transaction_id))
+                
+                if cursor.rowcount == 0:
+                    conn.rollback()
+                    return False, "Failed to update transaction. It may have already been returned."
+                
+                # Update book stock
+                cursor.execute('''
+                    UPDATE books 
+                    SET stock = stock + 1,
+                        updated_at = ?
+                    WHERE id = ?
+                ''', (now, transaction['book_id']))
+                
+                if cursor.rowcount == 0:
+                    conn.rollback()
+                    return False, "Failed to update book stock. Book not found."
+                
+                conn.commit()
+                logger.info(f"Successfully processed return for transaction {transaction_id}")
+                return True, "Book returned successfully"
+                
+        except sqlite3.Error as e:
+            logger.error(f"Database error in return_book: {str(e)}")
+            return False, f"Database error: {str(e)}"
+        except Exception as e:
+            logger.error(f"Unexpected error in return_book: {str(e)}")
+            return False, f"An unexpected error occurred: {str(e)}"
 
 # Example usage
 if __name__ == "__main__":

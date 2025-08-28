@@ -13,6 +13,7 @@ except Exception as _zbar_err:
     ZBAR_IMPORT_ERROR = _zbar_err
 import numpy as np
 import database
+from library_backend import LibraryBackend
 
 class BorrowBookScreen(QWidget):
     def __init__(self):
@@ -92,14 +93,139 @@ class BorrowBookScreen(QWidget):
         layout.addLayout(button_layout)
 
     def borrow_book_action(self):
-        user_id = self.user_id_input.text()
-        book_id = self.book_id_input.text()
-        if user_id and book_id:
-            print(f"Borrowing book... User ID: {user_id}, Book ID: {book_id}")
-            # Here you would add your database logic to borrow the book
-            self.close()
-        else:
-            print("User ID and Book ID are required.")
+        user_id = self.user_id_input.text().strip()
+        book_id = self.book_id_input.text().strip()
+        
+        # Input validation
+        if not user_id or not book_id:
+            QMessageBox.warning(self, "Missing Information", 
+                             "Please enter both User ID and Book ID.")
+            return
+            
+        if not user_id.isdigit() or not book_id.isdigit():
+            QMessageBox.warning(self, "Invalid Input", 
+                             "User ID and Book ID must be numbers.")
+            return
+            
+        try:
+            # Convert to integers after validation
+            user_id = int(user_id)
+            book_id = int(book_id)
+            
+            # Check if user exists
+            user = database.get_user_by_id(user_id)
+            if not user:
+                QMessageBox.warning(self, "User Not Found", 
+                                 f"No user found with ID: {user_id}")
+                return
+                
+            # Check if book exists and is available
+            book = database.get_book_by_id(book_id)
+            if not book:
+                QMessageBox.warning(self, "Book Not Found", 
+                                 f"No book found with ID: {book_id}")
+                return
+                
+            available = book.get('stock', 0)
+            if available <= 0:
+                QMessageBox.warning(self, "Book Not Available", 
+                                 f"The book '{book.get('title', '')}' is currently not available for borrowing.\n\n"
+                                 f"Book ID: {book_id}\n"
+                                 f"Current Stock: {available}")
+                return
+                
+            # Check if user has reached maximum borrow limit
+            borrowed_count = database.get_borrowed_books_count(user_id)
+            max_borrow_limit = 5  # You can adjust this value as needed
+            
+            if borrowed_count >= max_borrow_limit:
+                QMessageBox.warning(self, "Borrowing Limit Reached",
+                                 f"You have reached the maximum borrowing limit of {max_borrow_limit} books.")
+                return
+                
+            try:
+                # Create library backend instance and proceed with borrowing
+                library = LibraryBackend()
+                success, message = library.borrow_book(user_id, book_id)
+                
+                if success:
+                    # Clear the input fields
+                    self.user_id_input.clear()
+                    self.book_id_input.clear()
+                    # Create a custom styled message box
+                    msg_box = QMessageBox(self)
+                    msg_box.setWindowTitle("Borrowing Successful")
+                    msg_box.setIcon(QMessageBox.Information)
+                    
+                    # Set message with better formatting
+                    book_title = book.get('title', 'the selected book')
+                    user_name = user.get('full_name', 'the user')
+                    due_date = (datetime.now() + timedelta(days=14)).strftime('%Y-%m-%d')
+                    
+                    message = (
+                        f"<h3>Book Successfully Borrowed</h3>"
+                        f"<p>The book <b>'{book_title}'</b> has been successfully issued to <b>{user_name}</b>.</p>"
+                        f"<p><b>Due Date:</b> {due_date}</p>"
+                        f"<p>Please return the book by the due date to avoid late fees.</p>"
+                    )
+                    
+                    msg_box.setText(message)
+                    msg_box.setTextFormat(Qt.RichText)
+                    
+                    # Style the message box
+                    msg_box.setStyleSheet("""
+                        QMessageBox {
+                            background-color: #f8f9fa;
+                            min-width: 400px;
+                        }
+                        QLabel {
+                            color: #2c3e50;
+                            font-size: 14px;
+                        }
+                        QPushButton {
+                            background-color: #28a745;
+                            color: white;
+                            border: none;
+                            padding: 8px 16px;
+                            border-radius: 4px;
+                            font-weight: bold;
+                            min-width: 100px;
+                        }
+                        QPushButton:hover {
+                            background-color: #218838;
+                        }
+                    """)
+                    
+                    # Add OK button
+                    ok_button = msg_box.addButton("OK", QMessageBox.AcceptRole)
+                    ok_button.setCursor(Qt.PointingHandCursor)
+                    
+                    # Show the message box
+                    msg_box.exec_()
+                    
+                    # Clear the input fields and close the window
+                    self.user_id_input.clear()
+                    self.book_id_input.clear()
+                    self.close()
+                else:
+                    QMessageBox.critical(self, "Error", 
+                                       "Failed to process the borrowing. The book may not be available or there was a database error.")
+            except Exception as e:
+                error_msg = str(e)
+                # If the error is about missing attribute, provide a more helpful message
+                if "no attribute 'borrow_book'" in error_msg:
+                    error_msg = "Error: The borrowing functionality is not properly configured. Please contact support."
+                QMessageBox.critical(self, "Error", 
+                                 f"An error occurred while processing the borrowing: {error_msg}")
+                print(f"Error in borrow_book: {str(e)}")
+                
+        except ValueError as e:
+            QMessageBox.critical(self, "Error", 
+                               f"Invalid input: {str(e)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", 
+                               f"An error occurred: {str(e)}")
+            print(f"Error in borrow_book_action: {str(e)}")
 
 class ReturnBookScreen(QWidget):
     def __init__(self):

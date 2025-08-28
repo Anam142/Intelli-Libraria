@@ -4,18 +4,17 @@ from PyQt5.QtWidgets import QMessageBox
 
 def create_connection():
     """Create a database connection to the SQLite database."""
-    # Always reuse the shared DB managed by data/database.py
-    try:
-        from data.database import DB_PATH
-    except Exception:
-        # Fallback to project root
-        DB_PATH = os.path.join(os.path.dirname(__file__), 'intelli_libraria.db')
+    # Use the database file in the project root
+    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'intelli_libraria.db')
     conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(db_path)
+        # Enable foreign key constraints
+        conn.execute("PRAGMA foreign_keys = ON")
+        return conn
     except sqlite3.Error as e:
-        print(e)
-    return conn
+        print(f"Error connecting to database: {e}")
+        raise
 
 def update_database_schema(conn):
     """Update the database schema to match the current application requirements."""
@@ -231,6 +230,23 @@ def create_tables():
                 FOREIGN KEY (book_id) REFERENCES books (id)
             )
             """)
+            
+            # Create transactions table
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                book_id INTEGER NOT NULL,
+                issue_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                due_date TIMESTAMP NOT NULL,
+                return_date TIMESTAMP,
+                status TEXT DEFAULT 'borrowed',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id),
+                FOREIGN KEY (book_id) REFERENCES books (id)
+            )
+            ''')
             # Update database schema if needed
             update_database_schema(conn)
             conn.commit()
@@ -383,6 +399,33 @@ def get_borrowed_count():
         return int(result[0]) if result and result[0] is not None else 0
     except sqlite3.Error as e:
         print(f"Database error: {e}")
+        return 0
+    finally:
+        if conn:
+            conn.close()
+
+def get_borrowed_books_count(user_id):
+    """Return the number of books currently borrowed by a specific user.
+    
+    Args:
+        user_id (int): The ID of the user
+        
+    Returns:
+        int: Number of books currently borrowed by the user
+    """
+    conn = create_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COUNT(*) 
+            FROM transactions 
+            WHERE user_id = ? 
+            AND status IN ('Issued', 'Borrowed')
+        ''', (user_id,))
+        result = cursor.fetchone()
+        return result[0] if result else 0
+    except sqlite3.Error as e:
+        print(f"Database error in get_borrowed_books_count: {e}")
         return 0
     finally:
         if conn:

@@ -192,27 +192,53 @@ class NotificationReminderPage(QWidget):
         btn.setCheckable(True)
         btn.setChecked(selected)
         btn.clicked.connect(lambda: self.on_chip_clicked(text))
-        btn.setStyleSheet(
-            """
-            QPushButton {
-                background: #f3f4f6;
-                color: #374151;
-                border: 1px solid #e5e7eb;
-                border-radius: 18px;
-                padding: 6px 12px;
+        
+        # Set different background colors based on the button text
+        if text == 'All':
+            bg_color = "#ef4444"  # Red
+            hover_color = "#dc2626"
+            text_color = "white"
+        elif text == 'Due Date':
+            bg_color = "#3b82f6"  # Blue
+            hover_color = "#2563eb"
+            text_color = "white"
+        elif text == 'Reservation':
+            bg_color = "#10b981"  # Green
+            hover_color = "#059669"
+            text_color = "white"
+        else:
+            bg_color = "#f3f4f6"  # Default gray
+            hover_color = "#e5e7eb"
+            text_color = "#374151"
+            
+        # Create style string with f-strings for dynamic colors
+        style = f"""
+            QPushButton {{
+                background: {bg_color};
+                color: {text_color};
+                border: 1px solid {bg_color};
+                border-radius: 20px;
+                padding: 8px 24px;
                 font-size: 13px;
                 font-weight: 600;
-            }
-            QPushButton:checked {
-                background: #e0e7ff;
-                color: #3730a3;
-                border-color: #c7d2fe;
-            }
-            QPushButton:hover {
-                background: #e5e7eb;
-            }
-            """
-        )
+                min-width: 100px;
+                margin: 4px;
+            }}
+            QPushButton:hover {{
+                background: {hover_color};
+                border-color: {hover_color};
+            }}
+            QPushButton:checked {{
+                background: {bg_color};
+                color: {text_color};
+                border: 1px solid {bg_color};
+            }}
+            QPushButton:checked:hover {{
+                background: {hover_color};
+                border-color: {hover_color};
+            }}
+        """
+        btn.setStyleSheet(style)
         return btn
 
     def on_chip_clicked(self, label):
@@ -342,15 +368,17 @@ class NotificationReminderPage(QWidget):
         mark_all.setStyleSheet(
             """
             QPushButton {
-                background: #f3f4f6;
-                color: #111827;
+                background-color: #1e90ff;
+                color: white;
                 border: none;
                 border-radius: 12px;
                 padding: 8px 16px;
                 font-size: 14px;
                 font-weight: 600;
             }
-            QPushButton:hover { background: #e5e7eb; }
+            QPushButton:hover {
+                background-color: #1c86ee;
+            }
             """
         )
         footer.addWidget(mark_all)
