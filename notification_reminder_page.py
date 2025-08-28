@@ -173,11 +173,11 @@ class NotificationReminderPage(QWidget):
         )
         self.main_layout.addWidget(search_input)
 
-        # Filter chips row
+        # Filter chips row with minimal spacing
         chips_container = QWidget()
         chips_layout = QHBoxLayout(chips_container)
-        chips_layout.setContentsMargins(0, 0, 0, 10)
-        chips_layout.setSpacing(10)
+        chips_layout.setContentsMargins(0, 0, 0, 10)  # Keep bottom margin for spacing below the row
+        chips_layout.setSpacing(0)  # No spacing between buttons
 
         for label in ["All", "Due Date", "Reservation"]:
             chip = self.build_chip(label, selected=(label == self.active_filter))
@@ -217,12 +217,16 @@ class NotificationReminderPage(QWidget):
                 background: {bg_color};
                 color: {text_color};
                 border: 1px solid {bg_color};
-                border-radius: 20px;
-                padding: 8px 24px;
+                border-radius: 16px;
+                padding: 8px 20px;
                 font-size: 13px;
                 font-weight: 600;
                 min-width: 100px;
-                margin: 4px;
+                margin: 2px 1px;  /* Minimal horizontal margin between buttons */
+                border-top-right-radius: 16px;
+                border-bottom-right-radius: 16px;
+                border-top-left-radius: 16px;
+                border-bottom-left-radius: 16px;
             }}
             QPushButton:hover {{
                 background: {hover_color};
