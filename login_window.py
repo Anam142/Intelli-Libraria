@@ -4,8 +4,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QMessageBox, QSpacerItem, QSizePolicy, QStackedWidget,
     QGraphicsDropShadowEffect, QCheckBox, QDialog
 )
-from PyQt5.QtGui import QPixmap, QFont, QPainter, QIcon
-from PyQt5.QtGui import QPixmap, QFont, QPainter
+from PyQt5.QtGui import QPixmap, QFont, QPainter, QIcon, QColor
 from PyQt5.QtCore import Qt, pyqtSignal
 from signup_page_clean import SignupPage
 
@@ -125,20 +124,18 @@ class LoginWindow(QMainWindow):
         """Sets up the widgets and styling for the login form card."""
         self.login_card.setStyleSheet("""
             QWidget#login_card {
-                background: #e6f3ff;  /* Light blue background */
+                background: #f5f5f5;  /* Light gray background */
                 border-radius: 24px;
                 padding: 28px;
-                border: 1px solid #b3d9ff;  /* Light blue border */
+                border: none;
             }
             QLabel#title_container {
                 background: white;
-                border: 1px solid #2c3e50;  /* Dark border */
+                border: 1px solid #2c3e50;
                 border-radius: 50px;
-                padding: 10px 26px;
-                margin-bottom: 16px;
+                padding: 4px 26px 3px;  /* Minimal padding: top, sides, bottom */
+                margin: 0;  /* No margin */
                 max-width: 200px;
-                margin-left: auto;
-                margin-right: auto;
             }
             QLabel#title_label {
                 font-family: Arial;
@@ -209,45 +206,43 @@ class LoginWindow(QMainWindow):
 
         self.login_card.setObjectName("login_card")
         # Set fixed size for the login card
-        self.login_card.setFixedSize(520, 560)
+        self.login_card.setFixedSize(450, 500)  # Reduced width and height
 
         # Elevation
         shadow = QGraphicsDropShadowEffect(self.login_card)
-        shadow.setBlurRadius(40)
+        shadow.setBlurRadius(20)
         shadow.setXOffset(0)
-        shadow.setYOffset(18)
-        shadow.setColor(Qt.black)
+        shadow.setYOffset(10)
+        shadow.setColor(QColor(0, 0, 0, 60))  # Lighter shadow with transparency
         self.login_card.setGraphicsEffect(shadow)
         
         # --- Layout for the card ---
         card_layout = QVBoxLayout(self.login_card)
-        # Reduced bottom margin to make it more compact
-        card_layout.setContentsMargins(40, 40, 40, 30)
-        card_layout.setSpacing(15)
+        # Minimal margins and spacing
+        card_layout.setContentsMargins(30, 0, 30, 10)  # No top margin
+        card_layout.setSpacing(0)  # No spacing between widgets
         card_layout.setAlignment(Qt.AlignCenter)
 
-        # Title container with pill shape
+        # Title container with pill shape - minimal spacing
         title_container = QWidget()
         title_container.setObjectName("title_container")
         title_layout = QVBoxLayout(title_container)
         title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(0)
+        title_container.setFixedHeight(40)  # Fixed height to control spacing
         
         # Title text (in title case)
         title = QLabel("Admin Login")
         title.setObjectName("title_label")
         title_layout.addWidget(title, 0, Qt.AlignCenter)
         
+        # Add title container with no extra spacing
         card_layout.addWidget(title_container)
-        
-        card_layout.addSpacerItem(QSpacerItem(0, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
         # Username input (used for login)
         self.username = QLineEdit()
         self.username.setPlaceholderText("Username")
         card_layout.addWidget(self.username)
-        email_hint = QLabel("Use your username")
-        email_hint.setObjectName("helper_text")
-        card_layout.addWidget(email_hint)
 
         # Password input
         self.password = QLineEdit()
@@ -285,12 +280,15 @@ class LoginWindow(QMainWindow):
         self.signup_button.clicked.connect(self.show_signup_page)
         card_layout.addWidget(self.signup_button)
         
-        # Forgot Password button
+        # Forgot Password button with reduced spacing
         self.forgot_button = QPushButton("Forgot Password?")
         self.forgot_button.setObjectName("forgot_button")
         self.forgot_button.setCursor(Qt.PointingHandCursor)
         self.forgot_button.clicked.connect(self.open_forgot_password_dialog)
+        # Add button with minimal spacing
+        card_layout.addSpacing(5)  # Small space before Forgot Password
         card_layout.addWidget(self.forgot_button, alignment=Qt.AlignCenter)
+        card_layout.addSpacing(2)  # Minimal space at the bottom
         
         # Removed the extra stretch that was adding space at the bottom
 

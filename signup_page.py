@@ -325,7 +325,7 @@ def main():
         app.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     
     # Set application style and font
-    app.setStyle('Fusion')
+    app.setStyle('Times new rom')
     font = QFont("Inter", 10)
     app.setFont(font)
     
