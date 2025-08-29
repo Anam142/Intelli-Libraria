@@ -1,3 +1,4 @@
+import sqlite3
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                             QLineEdit, QFrame, QGridLayout, QTableWidget, QTableWidgetItem, 
                             QHeaderView, QSizePolicy, QTabWidget, QMessageBox, QVBoxLayout,
@@ -110,76 +111,99 @@ class BorrowBookScreen(QWidget):
             # Try to borrow the book
             success, message = borrow_service.borrow_book(user_id, book_id)
             
+            # Always show the message to the user
+            msg_box = QMessageBox(self)
+            
             if success:
-                # Clear the input fields
-                self.user_id_input.clear()
-                self.book_id_input.clear()
-                # Create a custom styled message box
-                msg_box = QMessageBox(self)
+                # Set success styling and title
                 msg_box.setWindowTitle("Borrowing Successful")
                 msg_box.setIcon(QMessageBox.Information)
                 
-                # Set message with better formatting
-                book_title = message.get('book_title', 'the selected book')
-                user_name = message.get('user_name', 'the user')
-                due_date = message.get('due_date', 'the due date')
+                # Parse the success message
+                import re
+                match = re.search(r"Successfully borrowed '(.+?)'\. Due date: (.+)", message)
+                if match:
+                    book_title = match.group(1)
+                    due_date = match.group(2)
+                    message = (
+                        f"<h3>Book Successfully Borrowed</h3>"
+                        f"<p>The book <b>'{book_title}'</b> has been successfully issued.</p>"
+                        f"<p><b>Due Date:</b> {due_date}</p>"
+                        f"<p>Please return the book by the due date to avoid late fees.</p>"
+                    )
+                else:
+                    # Fallback if message format doesn't match
+                    message = f"<h3>Success</h3><p>{message}</p>"
+            else:
+                # Error case
+                msg_box.setWindowTitle("Borrowing Failed")
+                msg_box.setIcon(QMessageBox.Warning)
                 
-                message = (
-                    f"<h3>Book Successfully Borrowed</h3>"
-                    f"<p>The book <b>'{book_title}'</b> has been successfully issued to <b>{user_name}</b>.</p>"
-                    f"<p><b>Due Date:</b> {due_date}</p>"
-                    f"<p>Please return the book by the due date to avoid late fees.</p>"
-                )
+                # Show specific error messages based on the error type
+                if "User not found or account is inactive" in message:
+                    message = "The user ID is invalid or the account is inactive."
+                elif "Book not found" in message:
+                    message = "The book ID is invalid or the book does not exist."
+                elif "No available copies of this book" in message:
+                    message = "This book is currently not available for borrowing."
+                elif "already borrowed this book" in message:
+                    message = "This book has already been borrowed by the same user."
+                elif "Invalid user ID or book ID" in message:
+                    message = "Please enter valid numeric IDs for both user and book."
+                else:
+                    message = f"An error occurred: {message}"
                 
-                msg_box.setText(message)
-                msg_box.setTextFormat(Qt.RichText)
-                
-                # Style the message box
-                msg_box.setStyleSheet("""
-                    QMessageBox {
-                        background-color: #f8f9fa;
-                        min-width: 400px;
-                    }
-                    QLabel {
-                        color: #2c3e50;
-                        font-size: 14px;
-                    }
-                    QPushButton {
-                        background-color: #28a745;
-                        color: white;
-                        border: none;
-                        padding: 8px 16px;
-                        border-radius: 4px;
-                        font-weight: bold;
-                        min-width: 100px;
-                    }
-                    QPushButton:hover {
-                        background-color: #218838;
-                    }
-                """)
-                
-                # Add OK button
-                ok_button = msg_box.addButton("OK", QMessageBox.AcceptRole)
-                ok_button.setCursor(Qt.PointingHandCursor)
-                
-                # Show the message box
-                msg_box.exec_()
-                
-                # Clear the input fields and close the window
+                message = f"<h3>Could Not Borrow Book</h3><p>{message}</p>"
+            
+            # Set message and show the dialog
+            msg_box.setText(message)
+            msg_box.setTextFormat(Qt.RichText)
+            
+            # Style the message box
+            msg_box.setStyleSheet("""
+                QMessageBox {
+                    background-color: #f8f9fa;
+                    min-width: 400px;
+                    font-family: Arial;
+                }
+                QLabel {
+                    color: #2c3e50;
+                    font-size: 14px;
+                }
+                QPushButton {
+                    background-color: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    min-width: 100px;
+                }
+                QPushButton:hover {
+                    background-color: #218838;
+                }
+            """)
+            
+            # Add OK button
+            ok_button = msg_box.addButton("OK", QMessageBox.AcceptRole)
+            ok_button.setCursor(Qt.PointingHandCursor)
+            
+            # Show the message box and wait for it to be closed
+            msg_box.exec_()
+            
+            # Clear the input fields if the operation was successful
+            if success:
                 self.user_id_input.clear()
                 self.book_id_input.clear()
-                self.close()
-            else:
-                QMessageBox.critical(self, "Error", 
-                                   "Failed to process the borrowing. The book may not be available or there was a database error.")
+                
         except Exception as e:
             error_msg = str(e)
             # If the error is about missing attribute, provide a more helpful message
             if "no attribute 'borrow_book'" in error_msg:
                 error_msg = "Error: The borrowing functionality is not properly configured. Please contact support."
             QMessageBox.critical(self, "Error", 
-                             f"An error occurred while processing the borrowing: {error_msg}")
-            print(f"Error in borrow_book: {str(e)}")
+                              f"An error occurred while processing the borrowing: {error_msg}")
+            print(f"Error in borrow_book: {error_msg}")
                 
     def borrow_book_action_old(self):
         user_id = self.user_id_input.text().strip()
@@ -394,14 +418,150 @@ class ReturnBookScreen(QWidget):
         layout.addLayout(button_layout)
 
     def return_book_action(self):
-        user_id = self.user_id_input.text()
-        book_id = self.book_id_input.text()
-        if user_id and book_id:
-            print(f"Returning book... User ID: {user_id}, Book ID: {book_id}")
-            # Here you would add your database logic to return the book
-            self.close()
-        else:
-            print("User ID and Book ID are required.")
+        user_id = self.user_id_input.text().strip()
+        book_id = self.book_id_input.text().strip()
+        
+        # Input validation
+        if not user_id or not book_id:
+            QMessageBox.warning(self, "Missing Information", 
+                             "Please enter both User ID and Book ID.")
+            return
+            
+        conn = None
+        try:
+            # Convert inputs to integers
+            user_id = int(user_id)
+            book_id = int(book_id)
+            
+            # Get database connection with timeout and check_same_thread=False
+            conn = sqlite3.connect('intelli_libraria.db', timeout=30, check_same_thread=False)
+            conn.execute('PRAGMA busy_timeout = 30000')  # 30 seconds timeout
+            conn.execute('PRAGMA journal_mode=WAL')  # Enable Write-Ahead Logging
+            
+            with conn:
+                cursor = conn.cursor()
+                
+                # Check if the book is actually borrowed by this user
+                cursor.execute("""
+                    SELECT t.id, b.title 
+                    FROM transactions t
+                    JOIN books b ON t.book_id = b.id
+                    WHERE t.user_id = ? 
+                    AND t.book_id = ? 
+                    AND t.status = 'Issued'
+                    AND t.return_date IS NULL
+                    LIMIT 1
+                """, (user_id, book_id))
+                
+                transaction = cursor.fetchone()
+                
+                if not transaction:
+                    QMessageBox.warning(
+                        self, 
+                        "No Active Borrowing Found",
+                        "No active borrowing record found for this user and book.\n\n"
+                        "Please check the User ID and Book ID and try again."
+                    )
+                    return
+                    
+                transaction_id, book_title = transaction
+                
+                # Update the transaction record
+                cursor.execute("""
+                    UPDATE transactions 
+                    SET return_date = DATE('now'),
+                        status = 'Returned',
+                        updated_at=CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (transaction_id,))
+                
+                # Update book availability
+                cursor.execute("""
+                    UPDATE books 
+                    SET stock = stock + 1,
+                        updated_at=CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (book_id,))
+                
+                # Commit is handled by the context manager
+            
+            # Show success message
+            success_msg = QMessageBox()
+            success_msg.setWindowTitle("Book Returned Successfully")
+            success_msg.setIcon(QMessageBox.Information)
+            success_msg.setTextFormat(Qt.RichText)
+            success_msg.setText(
+                f"<h3>Book Successfully Returned</h3>"
+                f"<p>The book <b>'{book_title}'</b> has been successfully returned.</p>"
+                f"<p>Thank you for returning the book on time!</p>"
+            )
+            
+            # Style the message box
+            success_msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #f8f9fa;
+                    min-width: 400px;
+                    font-family: Arial;
+                }
+                QLabel {
+                    color: #2c3e50;
+                    font-size: 14px;
+                }
+                QPushButton {
+                    background-color: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    min-width: 100px;
+                }
+                QPushButton:hover {
+                    background-color: #218838;
+                }
+            """)
+            
+            # Add OK button
+            ok_button = success_msg.addButton("OK", QMessageBox.AcceptRole)
+            ok_button.setCursor(Qt.PointingHandCursor)
+            
+            # Show the message box
+            success_msg.exec_()
+            
+            # Clear the input fields
+            self.user_id_input.clear()
+            self.book_id_input.clear()
+            
+        except ValueError:
+            QMessageBox.warning(
+                self, 
+                "Invalid Input", 
+                "Please enter valid numeric IDs for both User ID and Book ID."
+            )
+        except sqlite3.Error as e:
+            if conn:
+                conn.rollback()
+            QMessageBox.critical(
+                self, 
+                "Database Error", 
+                f"An error occurred while processing the return.\n\nError: {str(e)}\n\nPlease try again."
+            )
+            print(f"Database error in return_book_action: {str(e)}")
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            QMessageBox.critical(
+                self, 
+                "Error", 
+                f"An unexpected error occurred.\n\nError: {str(e)}\n\nPlease try again."
+            )
+            print(f"Error in return_book_action: {str(e)}")
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
 
 class BorrowReturnPage(QWidget):
     def __init__(self):

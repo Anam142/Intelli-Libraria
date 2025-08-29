@@ -185,7 +185,6 @@ class LibraryBackend:
                         SELECT id, title, stock 
                         FROM books 
                         WHERE id = ?
-                        FOR UPDATE
                     ''', (book_id,))
                     
                     book = cursor.fetchone()

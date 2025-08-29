@@ -125,8 +125,9 @@ class ReportGenerationPage(QWidget):
         preview_label.setStyleSheet("margin-bottom: 8px; margin-top: 0px;")  # Remove extra top margin
         main_layout.addWidget(preview_label)
 
-        self.table = QTableWidget(5, 7)
-        self.table.setHorizontalHeaderLabels(["Title", "Author", "ISBN", "Available", "Total", "Actions", "Delete"])
+        # Initialize table with 6 columns (Actions column will contain the Delete button)
+        self.table = QTableWidget(5, 6)
+        self.table.setHorizontalHeaderLabels(["Title", "Author", "ISBN", "Available", "Total", "Actions"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -134,7 +135,9 @@ class ReportGenerationPage(QWidget):
         self.table.setShowGrid(False)
         self.table.setAlternatingRowColors(False)
         self.table.setFocusPolicy(Qt.NoFocus)
-        self.table.verticalHeader().setDefaultSectionSize(44)
+        # Increase row height to ensure buttons are fully visible
+        self.table.verticalHeader().setDefaultSectionSize(48)
+        self.table.verticalHeader().setMinimumSectionSize(48)
         self.table.setStyleSheet("""
             QTableWidget {
                 background: #fff;
@@ -148,7 +151,8 @@ class ReportGenerationPage(QWidget):
             }
             QTableWidget::item {
                 border-bottom: 1px solid #e5e7eb;
-                padding: 12px 8px;
+                padding: 4px 8px;  /* Reduced vertical padding to give more space for the button */
+                margin: 0;
             }
             QTableWidget::item:first-child {
                 padding-left: 16px;
@@ -185,26 +189,39 @@ class ReportGenerationPage(QWidget):
             self.table.setItem(row, 2, QTableWidgetItem(isbn))
             self.table.setItem(row, 3, QTableWidgetItem(available))
             self.table.setItem(row, 4, QTableWidgetItem(total))
-            delete_button = QPushButton("Delete")
-            delete_button.setStyleSheet("""
+            # Create and style the delete button
+            delete_btn = QPushButton("Delete")
+            delete_btn.setFixedSize(80, 32)
+            delete_btn.setStyleSheet("""
                 QPushButton {
-                    background: #d32f2f;
+                    background: #ef4444;
                     color: white;
                     border: none;
-                    border-radius: 4px;
+                    border-radius: 6px;
                     padding: 6px 12px;
+                    font-size: 13px;
                     font-weight: 500;
                     min-width: 80px;
                 }
                 QPushButton:hover {
-                    background: #b71c1c;
+                    background: #dc2626;
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
                 }
                 QPushButton:pressed {
-                    background: #8e0000;
+                    background: #b91c1c;
                 }
             """)
-            delete_button.clicked.connect(lambda checked, r=row: self._on_delete_clicked(r))
-            self.table.setCellWidget(row, 6, delete_button)
+            delete_btn.clicked.connect(lambda checked, r=row: self._on_delete_clicked(r))
+            
+            # Create a container widget for proper centering with adjusted margins
+            container = QWidget()
+            container.setStyleSheet("background: transparent;")
+            layout = QHBoxLayout(container)
+            layout.setSpacing(0)
+            layout.setContentsMargins(8, 6, 8, 6)  # Add some vertical padding
+            layout.addWidget(delete_btn, 0, Qt.AlignCenter)
+            container.setLayout(layout)
+            self.table.setCellWidget(row, 5, container)  # Place in Actions column (index 5)
 
     def _on_delete_clicked(self, row):
         """Handle delete button click"""
@@ -408,3 +425,4 @@ class ReportGenerationPage(QWidget):
             self._show_inventory_report()
         elif report_type == "Borrowed Books":
             self._show_borrowed_books_report()
+        # No else needed as we want to keep the default table state with Delete in Actions column

@@ -237,6 +237,7 @@ class LoginWindow(QMainWindow):
                 padding: 0;
                 margin: 6px 0;
                 min-height: 44px;
+                min-width: 100%;
                 width: 100%;
                 text-align: center;
             }
@@ -257,6 +258,7 @@ class LoginWindow(QMainWindow):
                 padding: 0;
                 margin: 6px 0;
                 min-height: 44px;
+                min-width: 100%;
                 width: 100%;
                 text-align: center;
             }
@@ -350,10 +352,10 @@ class LoginWindow(QMainWindow):
         
         card_layout.addSpacerItem(QSpacerItem(0, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
-        # Buttons container
+        # Buttons container - no margins to match input field width
         buttons_container = QWidget()
         buttons_layout = QVBoxLayout(buttons_container)
-        buttons_layout.setContentsMargins(15, 10, 15, 10)  # Reduced side margins for more width
+        buttons_layout.setContentsMargins(0, 10, 0, 10)  # No side margins to match input field width
         buttons_layout.setSpacing(12)  # Space between buttons
         
         # Login button
@@ -462,10 +464,12 @@ class LoginWindow(QMainWindow):
 
     def show_signup_page(self):
         """Switch to the signup page."""
+        self.setWindowTitle("Intelli Libraria - Sign Up")
         self.stacked_widget.setCurrentIndex(1)
     
     def show_login_page(self):
         """Switch to the login page."""
+        self.setWindowTitle("Intelli Libraria - Login")
         self.stacked_widget.setCurrentIndex(0)
     
     def center_window(self):

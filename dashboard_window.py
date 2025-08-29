@@ -526,6 +526,19 @@ class DashboardWindow(QMainWindow):
                     for item in [title_item, author_item, user_item, due_date_item, status_item]:
                         item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                     
+                    # Set base font for status (larger and bold for better visibility)
+                    status_font = QFont('Arial', 11, QFont.Bold)
+                    status_item.setFont(status_font)
+                    
+                    # Color code status
+                    status_text = status.lower() if status else ""
+                    if 'overdue' in status_text:
+                        status_item.setForeground(QColor('#ef4444'))  # Red for overdue
+                    elif 'issue' in status_text:
+                        status_item.setForeground(QColor('#f59e0b'))  # Yellow for issued
+                    elif 'return' in status_text:
+                        status_item.setForeground(QColor('#10b981'))  # Green for returned
+                    
                     # Add items to the table
                     table.setItem(row, 0, title_item)
                     table.setItem(row, 1, author_item)
@@ -533,23 +546,8 @@ class DashboardWindow(QMainWindow):
                     table.setItem(row, 3, due_date_item)
                     table.setItem(row, 4, status_item)
                     
-                    # Color code status
-                    status_text = status.lower() if status else ""
-                    if 'overdue' in status_text:
-                        status_item.setForeground(QColor('#ef4444'))  # Red for overdue
-                        status_item.setFont(QFont('Arial', 9, QFont.Bold))
-                    elif 'issue' in status_text:
-                        status_item.setForeground(QColor('#f59e0b'))  # Yellow for issued
-                    elif 'return' in status_text:
-                        status_item.setForeground(QColor('#10b981'))  # Green for returned
-                        
-                    # Make the status text more readable
-                    if status:
-                        status_item.setText(status.capitalize())
-                        
             except Exception as e:
                 print(f"Error loading recent transactions: {e}")
-                # Add a single row with error message if loading fails
                 table.setRowCount(1)
                 error_item = QTableWidgetItem(f"Error loading recent activity: {str(e)}")
                 error_item.setTextAlignment(Qt.AlignCenter)

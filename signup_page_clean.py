@@ -271,22 +271,30 @@ class SignupForm(QWidget):
             # Delegate to the containing SignupPage, which routes back to LoginWindow
             self.parent.show_login()
 
-class SignupPage(QWidget):
+class SignupPage(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
         self.bg_image = os.path.join("assets", "signup_bg.jpg")
+        self.setWindowTitle("Sign Up")
+        self.setWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | 
+                          Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint)
         self.init_ui()
     
     def init_ui(self):
-        self.setFixedSize(450, 500)  # Match the login card size
+        # Increased height to 520 to accommodate the title bar
+        self.setFixedSize(450, 520)  # Increased from 500 to 520 for title bar
+        
+        # Create central widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
         
         # Main layout
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
         
         # Background
-        self.bg_label = QLabel(self)
+        self.bg_label = QLabel(central_widget)
         
         if os.path.exists(self.bg_image):
             pixmap = QPixmap(self.bg_image)

@@ -25,7 +25,6 @@
                         SELECT id, title, available_quantity 
                         FROM books 
                         WHERE id = ?
-                        FOR UPDATE
                     ''', (book_id,))
                     
                     book = cursor.fetchone()

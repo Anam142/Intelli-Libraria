@@ -33,7 +33,6 @@ def borrow_book(self, user_id, book_id, days=14):
                     SELECT id, title, available_quantity 
                     FROM books 
                     WHERE id = ?
-                    FOR UPDATE
                 ''', (book_id,))
                 
                 book = cursor.fetchone()

@@ -1,10 +1,30 @@
-import sys
 import os
+import sys
+import warnings
+
+# Suppress all warnings
+warnings.filterwarnings("ignore")
+
+# Suppress specific PyQt5 warnings
+os.environ["QT_LOGGING_RULES"] = "*.debug=false;qt.qpa.*=false"
+os.environ["QT_QUICK_BACKEND"] = "software"
+os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
+
+# Disable Qt debug messages
+os.environ["QT_LOGGING_RULES"] = "*.debug=false"
+os.environ["QT_LOGGING_TO_CONSOLE"] = "0"
+
+# Import PyQt5 after setting environment variables
 from PyQt5.QtWidgets import QApplication, QMainWindow
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QLoggingCategory
+
+# Suppress specific Qt categories
+QLoggingCategory.setFilterRules('*.debug=false')
+
+# Import application components
 from classic_splash import ClassicSplashScreen
 from login_window import LoginWindow
 from dashboard_window import DashboardWindow
-from PyQt5.QtCore import Qt, QObject, pyqtSignal
 
 class Application(QObject):
     logout_requested = pyqtSignal()
@@ -12,11 +32,17 @@ class Application(QObject):
 
 def main():
     if __name__ == "__main__":
+        # Suppress Qt debug messages
+        os.environ["QT_LOGGING_RULES"] = "*.debug=false;qt.qpa.*=false"
+        
         # Enable high DPI scaling
         if hasattr(Qt, 'AA_EnableHighDpiScaling'):
             QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
         if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
             QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+            
+        # Suppress Qt warnings about style sheets
+        os.environ["QT_STYLE_OVERRIDE"] = ""
     
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
