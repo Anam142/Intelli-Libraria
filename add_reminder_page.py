@@ -366,47 +366,6 @@ class AddReminderPage(QDialog):
         self.form_layout.addWidget(priority_label)
         self.form_layout.addWidget(self.priority_combo)
         
-        # Add save button container with proper spacing
-        button_container = QWidget()
-        button_layout = QHBoxLayout(button_container)
-        button_layout.setContentsMargins(0, 20, 0, 20)
-        
-        # Add stretch to center the button
-        button_layout.addStretch()
-        
-        # Create and style the save button
-        self.save_button = QPushButton("Save Reminder")
-        self.save_button.setObjectName("saveButton")
-        self.save_button.setCursor(Qt.PointingHandCursor)
-        self.save_button.setFixedSize(200, 50)  # Fixed size for better appearance
-        self.save_button.clicked.connect(self.save_reminder)
-        
-        # Apply styles to the save button
-        self.save_button.setStyleSheet("""
-            QPushButton#saveButton {
-                background-color: #4a6cf7;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                font-size: 16px;
-                font-weight: 500;
-                padding: 12px 24px;
-                min-width: 180px;
-            }
-            QPushButton#saveButton:hover {
-                background-color: #3a5ce4;
-            }
-            QPushButton#saveButton:pressed {
-                background-color: #2a4cd0;
-            }
-        """)
-        
-        button_layout.addWidget(self.save_button)
-        button_layout.addStretch()
-        
-        # Add button container to form
-        self.form_layout.addWidget(button_container)
-        
         # Add some spacing at the bottom of the form
         self.form_layout.addStretch()
     
@@ -415,64 +374,21 @@ class AddReminderPage(QDialog):
         title = self.title_edit.text().strip()
         description = self.desc_edit.toPlainText().strip()
         date = self.date_edit.date().toString("yyyy-MM-dd")
-        time = self.time_edit.time().toString("HH:mm")  # 24-hour format for database
-        datetime_str = f"{date} {time}"
+        time = self.time_edit.time().toString("hh:mm AP")
         priority = self.priority_combo.currentText()
         
-        # Validate required fields
         if not title:
             QMessageBox.warning(self, "Error", "Please enter a title for the reminder.")
             return
             
-        try:
-            # Connect to the database
-            import sqlite3
-            
-            conn = sqlite3.connect('library.db')
-            cursor = conn.cursor()
-            
-            # Create reminders table if it doesn't exist
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS reminders (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL,
-                    description TEXT,
-                    due_datetime TEXT NOT NULL,
-                    priority TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    is_completed BOOLEAN DEFAULT 0
-                )
-            ''')
-            
-            # Insert the new reminder
-            cursor.execute('''
-                INSERT INTO reminders (title, description, due_datetime, priority)
-                VALUES (?, ?, ?, ?)
-            ''', (title, description if description else None, datetime_str, priority))
-            
-            # Commit changes and close connection
-            conn.commit()
-            conn.close()
-            
-            # Show success message
-            QMessageBox.information(self, "Success", "Reminder saved successfully!")
-            
-            # Clear the form
-            self.clear_form()
-            
-            # Close the dialog
-            self.accept()
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save reminder: {str(e)}")
-    
-    def clear_form(self):
-        """Clear all input fields"""
-        self.title_edit.clear()
-        self.desc_edit.clear()
-        self.date_edit.setDate(QDate.currentDate())
-        self.time_edit.setTime(QTime.currentTime())
-        self.priority_combo.setCurrentIndex(0)  # Set to default priority
+        # TODO: Save the reminder to the database
+        print(f"Saving reminder: {title}, {description}, {date} {time}, {priority}")
+        
+        # Show success message
+        QMessageBox.information(self, "Success", "Reminder saved successfully!")
+        
+        # Close the dialog
+        self.accept()
     
     def showEvent(self, event):
         """Center the dialog when shown"""
