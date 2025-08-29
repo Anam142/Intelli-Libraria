@@ -18,9 +18,29 @@ class CardFrame(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setBrush(QColor(255, 255, 255, 240))
         painter.setPen(Qt.NoPen)
+        
+        # Create a path that only rounds the bottom corners
         path = QPainterPath()
-        path.addRoundedRect(QRectF(2, 2, self.width()-4, self.height()-4), 12, 12)
-        painter.drawPath(path.simplified())
+        rect = QRectF(0, 0, self.width(), self.height())
+        radius = 12.0
+        
+        # Start from top-left
+        path.moveTo(rect.left(), rect.top())
+        # Line to top-right (top edge remains straight)
+        path.lineTo(rect.right(), rect.top())
+        # Line to bottom-right (with curve)
+        path.lineTo(rect.right(), rect.bottom() - radius)
+        path.arcTo(rect.right() - 2*radius, rect.bottom() - 2*radius, 
+                  2*radius, 2*radius, 0.0, 90.0)
+        # Line to bottom-left (with curve)
+        path.lineTo(rect.left() + radius, rect.bottom())
+        path.arcTo(rect.left(), rect.bottom() - 2*radius, 
+                  2*radius, 2*radius, 90.0, 90.0)
+        # Close the path (back to top-left)
+        path.closeSubpath()
+        
+        painter.setClipPath(path)
+        painter.drawPath(path)
 
 class SignupForm(QWidget):
     def __init__(self, parent=None):
@@ -49,15 +69,32 @@ class SignupForm(QWidget):
         layout.setSpacing(16)
         layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         
-        # Title
-        title = QLabel("Sign Up")
-        title.setStyleSheet(f"font-size: 26px; font-weight: 600; color: {PRIMARY};")
+        # Title with improved styling
+        title = QLabel("Create Account")
+        title.setStyleSheet(f"""
+            font-size: 32px;
+            font-weight: 700;
+            color: {PRIMARY};
+            margin-bottom: 5px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            letter-spacing: 0.5px;
+        """)
         title.setAlignment(Qt.AlignCenter)
         
-        # Subtitle
-        subtitle = QLabel("Create your account")
-        subtitle.setStyleSheet(f"color: {TEXT}; font-size: 14px; opacity: 0.8; margin-bottom: 10px;")
+        # Subtitle with enhanced styling
+        subtitle = QLabel("Join us and start your reading journey")
+        subtitle.setStyleSheet(f"""
+            color: #555555;
+            font-size: 15px;
+            font-weight: 400;
+            margin-bottom: 25px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        """)
         subtitle.setAlignment(Qt.AlignCenter)
+        
+        # Add some spacing
+        title.setContentsMargins(0, 0, 0, 0)
+        subtitle.setContentsMargins(0, 0, 0, 0)
         
         # Input fields
         fields = [
@@ -109,38 +146,51 @@ class SignupForm(QWidget):
         """)
         signup_btn.clicked.connect(self.handle_signup)
         
-        # Back to login button with simpler styling
-        back_to_login_btn = QPushButton("Back to Login")
+        # Enhanced back to login button
+        back_to_login_btn = QPushButton("Already have an account? Sign In")
         back_to_login_btn.setCursor(Qt.PointingHandCursor)
         back_to_login_btn.setStyleSheet(f"""
             QPushButton {{
                 color: {PRIMARY};
                 font-size: 14px;
                 font-weight: 500;
-                border: none;
+                border: 1px solid {PRIMARY};
                 background: transparent;
-                padding: 10px 20px;
-                margin-top: 10px;
+                padding: 10px 24px;
+                margin: 15px 0 5px 0;
                 text-align: center;
                 text-decoration: none;
-                border-radius: 4px;
+                border-radius: 6px;
+                transition: all 0.2s ease;
+                font-family: 'Segoe UI', Arial, sans-serif;
             }}
             QPushButton:hover {{
-                color: #3a5bd9;
-                background: rgba(74, 108, 247, 0.1);
+                color: white;
+                background-color: {PRIMARY};
                 text-decoration: none;
             }}
         """)
         back_to_login_btn.clicked.connect(self.handle_login)
         
-        # Add widgets to layout with proper spacing
+        # Add widgets to layout with improved spacing
+        layout.addSpacing(20)  # Add some top margin
         layout.addWidget(title)
         layout.addWidget(subtitle)
-        layout.addSpacing(10)
-        layout.addWidget(self.username_input)
-        layout.addWidget(self.email_input)
-        layout.addWidget(self.password_input)
-        layout.addWidget(self.phone_input)
+        
+        # Add input fields with consistent spacing
+        input_widgets = [
+            self.full_name_input,
+            self.username_input,
+            self.email_input,
+            self.password_input,
+            self.phone_input
+        ]
+        
+        for widget in input_widgets:
+            layout.addWidget(widget)
+            layout.addSpacing(8)  # Reduced spacing between fields
+            
+        # Add signup button with proper spacing
         layout.addSpacing(15)
         layout.addWidget(signup_btn)
         
@@ -255,20 +305,24 @@ class SignupPage(QWidget):
             """)
         else:
             main_widget.setStyleSheet("background: #4A6CF7;")
-        
+
         # Create form container
         form_container = QWidget(main_widget)
         form_container.setFixedSize(450, 650)
+        form_container.setAttribute(Qt.WA_StyledBackground, True)
         form_container.setStyleSheet("""
             QWidget {
                 background-color: rgba(255, 255, 255, 0.95);
-                border-radius: 12px;
+                border-bottom-left-radius: 12px;
+                border-bottom-right-radius: 12px;
+                border-top-left-radius: 12px;
+                border-top-right-radius: 12px;
             }
         """)
-        
+
         # Create and add the signup form
         self.form = SignupForm()
-        
+
         # Add form to container
         layout = QVBoxLayout(form_container)
         layout.setContentsMargins(0, 0, 0, 0)

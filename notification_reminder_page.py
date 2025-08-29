@@ -248,12 +248,15 @@ class NotificationReminderPage(QWidget):
     def on_chip_clicked(self, label):
         if self.active_filter != label:
             self.active_filter = label
-            self.render()  # re-render with new filter
+            # Only re-render the notifications content, not the entire UI
+            if self.current_tab == 'notifications':
+                self.render_notifications_content()
 
     def on_search_changed(self, text):
         self.search_query = text
-        # Re-render notifications live
-        self.render()
+        # Only re-render the notifications content, not the entire UI
+        if self.current_tab == 'notifications':
+            self.render_notifications_content()
         
     def filter_reminders(self, search_text):
         """Filter reminders based on search text in title or description"""
@@ -279,22 +282,68 @@ class NotificationReminderPage(QWidget):
 
     def render_notifications_content(self):
         """Render the notifications tab content matching the reference layout."""
+        # Clear existing content
+        while self.main_layout.count() > 3:  # Keep title, tab row, and search bar
+            item = self.main_layout.takeAt(3)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+        
         # Filtered data
         filtered = []
+        search_query = self.search_query.lower().strip() if self.search_query else ""
+        
         for item in self.notifications_data:
+            # Apply category filter
             if self.active_filter != 'All' and item['category'] != self.active_filter:
                 continue
-            if self.search_query:
-                q = self.search_query.lower()
-                if q not in item['title'].lower() and q not in item['description'].lower():
+                
+            # Apply search query if it exists
+            if search_query:
+                title_matches = search_query in item['title'].lower()
+                desc_matches = search_query in item['description'].lower()
+                if not (title_matches or desc_matches):
                     continue
+                    
             filtered.append(item)
 
-        # List container
+        # List container with scroll area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #f1f1f1;
+                width: 8px;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #c1c1c1;
+                min-height: 20px;
+                border-radius: 4px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
+        
         container = QWidget()
         container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setContentsMargins(0, 0, 10, 0)  # Add right margin for scrollbar
         container_layout.setSpacing(10)
+        
+        # Add a message if no notifications match the filter
+        if not filtered:
+            no_results = QLabel("No notifications found matching your search.")
+            no_results.setStyleSheet("color: #6b7280; font-style: italic; padding: 20px; text-align: center;")
+            container_layout.addWidget(no_results)
+        
+        scroll.setWidget(container)
 
         for item in filtered:
             row = QWidget()
@@ -666,8 +715,6 @@ class NotificationReminderPage(QWidget):
         save_btn.clicked.connect(self.save_reminder)
         
         button_row.addWidget(cancel_btn)
-        button_row.addWidget(save_btn)
-        
         self.main_layout.addLayout(button_row)
         self.main_layout.addStretch(1)
 

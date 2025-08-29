@@ -102,6 +102,95 @@ class BorrowBookScreen(QWidget):
                              "Please enter both User ID and Book ID.")
             return
             
+        try:
+            # Initialize the borrow service
+            from services.borrow_service import BorrowService
+            borrow_service = BorrowService()
+            
+            # Try to borrow the book
+            success, message = borrow_service.borrow_book(user_id, book_id)
+            
+            if success:
+                # Clear the input fields
+                self.user_id_input.clear()
+                self.book_id_input.clear()
+                # Create a custom styled message box
+                msg_box = QMessageBox(self)
+                msg_box.setWindowTitle("Borrowing Successful")
+                msg_box.setIcon(QMessageBox.Information)
+                
+                # Set message with better formatting
+                book_title = message.get('book_title', 'the selected book')
+                user_name = message.get('user_name', 'the user')
+                due_date = message.get('due_date', 'the due date')
+                
+                message = (
+                    f"<h3>Book Successfully Borrowed</h3>"
+                    f"<p>The book <b>'{book_title}'</b> has been successfully issued to <b>{user_name}</b>.</p>"
+                    f"<p><b>Due Date:</b> {due_date}</p>"
+                    f"<p>Please return the book by the due date to avoid late fees.</p>"
+                )
+                
+                msg_box.setText(message)
+                msg_box.setTextFormat(Qt.RichText)
+                
+                # Style the message box
+                msg_box.setStyleSheet("""
+                    QMessageBox {
+                        background-color: #f8f9fa;
+                        min-width: 400px;
+                    }
+                    QLabel {
+                        color: #2c3e50;
+                        font-size: 14px;
+                    }
+                    QPushButton {
+                        background-color: #28a745;
+                        color: white;
+                        border: none;
+                        padding: 8px 16px;
+                        border-radius: 4px;
+                        font-weight: bold;
+                        min-width: 100px;
+                    }
+                    QPushButton:hover {
+                        background-color: #218838;
+                    }
+                """)
+                
+                # Add OK button
+                ok_button = msg_box.addButton("OK", QMessageBox.AcceptRole)
+                ok_button.setCursor(Qt.PointingHandCursor)
+                
+                # Show the message box
+                msg_box.exec_()
+                
+                # Clear the input fields and close the window
+                self.user_id_input.clear()
+                self.book_id_input.clear()
+                self.close()
+            else:
+                QMessageBox.critical(self, "Error", 
+                                   "Failed to process the borrowing. The book may not be available or there was a database error.")
+        except Exception as e:
+            error_msg = str(e)
+            # If the error is about missing attribute, provide a more helpful message
+            if "no attribute 'borrow_book'" in error_msg:
+                error_msg = "Error: The borrowing functionality is not properly configured. Please contact support."
+            QMessageBox.critical(self, "Error", 
+                             f"An error occurred while processing the borrowing: {error_msg}")
+            print(f"Error in borrow_book: {str(e)}")
+                
+    def borrow_book_action_old(self):
+        user_id = self.user_id_input.text().strip()
+        book_id = self.book_id_input.text().strip()
+        
+        # Input validation
+        if not user_id or not book_id:
+            QMessageBox.warning(self, "Missing Information", 
+                             "Please enter both User ID and Book ID.")
+            return
+            
         if not user_id.isdigit() or not book_id.isdigit():
             QMessageBox.warning(self, "Invalid Input", 
                              "User ID and Book ID must be numbers.")

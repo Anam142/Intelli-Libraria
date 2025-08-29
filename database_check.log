@@ -1,0 +1,20 @@
+2025-08-28 12:54:28,336 - INFO - Connected to database successfully
+2025-08-28 12:54:28,337 - INFO - Tables in database: ['schema_migrations', 'users', 'sqlite_sequence', 'transactions', 'reservations', 'fines', 'reminders', 'feedback', 'books', 'categories', 'publishers', 'authors', 'book_authors', 'book_copies']
+2025-08-28 12:54:28,338 - INFO - Books table columns: ['id', 'title', 'author', 'isbn', 'edition', 'stock']
+2025-08-28 12:54:28,338 - INFO - Sample books: [{'id': 1, 'title': 'The Great Gatsby', 'author': '', 'isbn': '9780743273565', 'edition': '', 'stock': 0}, {'id': 2, 'title': 'To Kill a Mockingbird', 'author': '', 'isbn': '9780061120084', 'edition': '', 'stock': 0}, {'id': 4, 'title': 'Pride and Prejudice', 'author': '', 'isbn': '9780141439518', 'edition': '', 'stock': 0}, {'id': 6, 'title': 'The Catcher in the Rye', 'author': '', 'isbn': '9780316769488', 'edition': '', 'stock': 0}, {'id': 7, 'title': 'To the Lighthouse', 'author': '', 'isbn': '9780156907392', 'edition': '', 'stock': 0}]
+2025-08-28 12:54:28,339 - INFO - Users table columns: ['id', 'user_code', 'username', 'full_name', 'email', 'phone', 'role', 'status', 'password_hash', 'created_at', 'updated_at', 'password', 'contact', 'address']
+2025-08-28 12:54:28,340 - INFO - Sample users: [{'id': 1, 'username': 'admin', 'status': 'Active'}, {'id': 2, 'username': 'johnsmith', 'status': 'Active'}, {'id': 3, 'username': 'sarahj', 'status': 'Active'}, {'id': 4, 'username': 'michaelb', 'status': 'Inactive'}, {'id': 5, 'username': 'emmaw', 'status': 'Active'}]
+2025-08-28 12:54:28,341 - INFO - Transactions table columns: ['id', 'book_id', 'user_id', 'issue_date', 'due_date', 'return_date', 'status', 'created_at', 'updated_at']
+2025-08-28 12:54:28,341 - ERROR - Error checking database: no such column: borrow_date
+Traceback (most recent call last):
+  File "D:\New  IL\Intelli-Libraria\check_database.py", line 60, in check_database
+    cursor.execute("""
+    ~~~~~~~~~~~~~~^^^^
+        SELECT id, user_id, book_id, status, borrow_date, due_date
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        LIMIT 5
+        ^^^^^^^
+    """)
+    ^^^^
+sqlite3.OperationalError: no such column: borrow_date

@@ -203,11 +203,12 @@ class LoginWindow(QMainWindow):
                 max-width: 200px;
             }
             QLabel#title_label {
-                font-family: Arial;
-                font-size: 24px;
-                font-weight: 800;
-                color: #2c3e50; /* Dark text */
-                text-align: center;
+                color: #1f2937;
+                font-size: 18px;
+                font-weight: 600;
+                padding: 10px 30px;
+                margin: 0;
+                line-height: 20px;
             }
             QLineEdit {
                 padding: 14px 14px;
@@ -227,30 +228,44 @@ class LoginWindow(QMainWindow):
                 padding: 2px 4px 8px 4px;
             }
             QPushButton#login_button {
-                background-color: #2563eb; /* Richer blue */
+                background-color: #2563eb;
                 color: white;
-                font-size: 16px;
-                font-weight: 700;
-                border-radius: 10px;
+                font-size: 15px;
+                font-weight: 600;
+                border-radius: 8px;
                 border: none;
-                padding: 14px;
-                margin-top: 14px;
+                padding: 0;
+                margin: 6px 0;
+                min-height: 44px;
+                width: 100%;
+                text-align: center;
             }
             QPushButton#login_button:hover {
                 background-color: #1d4ed8; /* Darker blue */
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            QPushButton#login_button:pressed {
+                background-color: #1e40af;
             }
             QPushButton#signup_button {
-                background-color: #10b981; /* Richer green */
+                background-color: #10b981;
                 color: white;
-                font-size: 16px;
-                font-weight: 700;
-                border-radius: 10px;
+                font-size: 15px;
+                font-weight: 600;
+                border-radius: 8px;
                 border: none;
-                padding: 14px;
-                margin-top: 8px;
+                padding: 0;
+                margin: 6px 0;
+                min-height: 44px;
+                width: 100%;
+                text-align: center;
             }
             QPushButton#signup_button:hover {
                 background-color: #059669; /* Darker green */
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            QPushButton#signup_button:pressed {
+                background-color: #047857;
             }
             QPushButton#forgot_button {
                 background: transparent;
@@ -295,11 +310,13 @@ class LoginWindow(QMainWindow):
         title_layout = QVBoxLayout(title_container)
         title_layout.setContentsMargins(0, 0, 0, 0)
         title_layout.setSpacing(0)
-        title_container.setFixedHeight(40)  # Fixed height to control spacing
+        title_container.setFixedHeight(50)  # Increased height for better text visibility
         
         # Title text (in title case)
         title = QLabel("Admin Login")
         title.setObjectName("title_label")
+        title.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)  # Center vertically and horizontally
+        title.setContentsMargins(0, 0, 0, 0)  # Remove any default margins
         title_layout.addWidget(title, 0, Qt.AlignCenter)
         
         # Add title container with spacing
@@ -333,19 +350,28 @@ class LoginWindow(QMainWindow):
         
         card_layout.addSpacerItem(QSpacerItem(0, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
+        # Buttons container
+        buttons_container = QWidget()
+        buttons_layout = QVBoxLayout(buttons_container)
+        buttons_layout.setContentsMargins(15, 10, 15, 10)  # Reduced side margins for more width
+        buttons_layout.setSpacing(12)  # Space between buttons
+        
         # Login button
         self.login_button = QPushButton("Login")
         self.login_button.setObjectName("login_button")
         self.login_button.setCursor(Qt.PointingHandCursor)
         self.login_button.clicked.connect(self.handle_login)
-        card_layout.addWidget(self.login_button)
+        buttons_layout.addWidget(self.login_button)
 
         # Signup button
-        self.signup_button = QPushButton("Signup")
+        self.signup_button = QPushButton("Sign Up")
         self.signup_button.setObjectName("signup_button")
         self.signup_button.setCursor(Qt.PointingHandCursor)
         self.signup_button.clicked.connect(self.show_signup_page)
-        card_layout.addWidget(self.signup_button)
+        buttons_layout.addWidget(self.signup_button)
+        
+        # Add buttons container to card layout
+        card_layout.addWidget(buttons_container)
         
         # Forgot Password button with reduced spacing
         self.forgot_button = QPushButton("Forgot Password?")
@@ -531,7 +557,7 @@ class LoginWindow(QMainWindow):
                 padding: 0 24px;
                 border-radius: 8px;
                 font-weight: 600;
-                font-size: 15px;
+                font-size: 18px;
                 border: none;
                 min-width: 140px;
             }

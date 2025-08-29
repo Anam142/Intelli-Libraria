@@ -46,7 +46,6 @@ def main():
         def on_login_success():
             # When login is successful, show dashboard
             dashboard = DashboardWindow()
-            dashboard.setWindowTitle("Intelli Libraria")
             dashboard.showMaximized()  # Show maximized with title bar
             login_window.close()
             

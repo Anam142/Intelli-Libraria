@@ -430,7 +430,7 @@ class BookInventoryPage(QWidget):
                     edit_btn = QPushButton("Edit")
                     edit_btn.setStyleSheet("""
                         QPushButton {
-                            background-color: #4CAF50;
+                            background-color: #3b82f6;
                             color: white;
                             border: none;
                             padding: 4px 8px;
@@ -438,7 +438,7 @@ class BookInventoryPage(QWidget):
                             min-width: 60px;
                         }
                         QPushButton:hover {
-                            background-color: #45a049;
+                            background-color: #2563eb;
                         }
                     """)
                     edit_btn.clicked.connect(lambda _, bid=bid: self.edit_book(bid))

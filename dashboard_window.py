@@ -316,7 +316,7 @@ class Sidebar(QWidget):
 class DashboardWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Intelli Libraria")
+        self.setWindowTitle("Intelli Libraria - Dashboard")
         self.setWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | 
                           Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | 
                           Qt.WindowCloseButtonHint)
@@ -594,6 +594,9 @@ class DashboardWindow(QMainWindow):
         return scroll
 
     def show_dashboard(self):
+        # Set window title
+        self.setWindowTitle("Intelli Libraria - Dashboard")
+        
         # Refresh all dashboard data
         self.refresh_total_books()
         
@@ -629,6 +632,7 @@ class DashboardWindow(QMainWindow):
         self.pages_stack.setCurrentWidget(self.dashboard_content)
 
     def show_user_management(self):
+        self.setWindowTitle("Intelli Libraria - User Management")
         self.user_management_page.load_users()
         self.pages_stack.setCurrentWidget(self.user_management_page)
 
@@ -646,6 +650,7 @@ class DashboardWindow(QMainWindow):
             print(f"Failed to refresh total books: {e}")
 
     def show_book_inventory(self):
+        self.setWindowTitle("Intelli Libraria - Book Inventory")
         # Load books when navigating to the page to ensure fresh data and avoid early popups
         try:
             if hasattr(self.book_inventory_page, 'load_books'):
@@ -656,12 +661,15 @@ class DashboardWindow(QMainWindow):
         self.pages_stack.setCurrentWidget(self.book_inventory_page)
 
     def show_borrow_return(self):
+        self.setWindowTitle("Intelli Libraria - Borrow Books")
         self.pages_stack.setCurrentWidget(self.borrow_return_page)
 
     def show_report_generation(self):
+        self.setWindowTitle("Intelli Libraria - Reports")
         self.pages_stack.setCurrentWidget(self.report_generation_page)
 
     def show_fine_management(self):
+        self.setWindowTitle("Intelli Libraria - Fine Management")
         self.pages_stack.setCurrentWidget(self.fine_management_page)
         
     def show_notification_reminder(self):
@@ -671,7 +679,9 @@ class DashboardWindow(QMainWindow):
         
     def show_reservation_management(self):
         """Switch to the reservation management page"""
+        self.setWindowTitle("Intelli Libraria - Reservations")
         self.pages_stack.setCurrentWidget(self.reservation_management_page)
 
     def show_user_feedback(self):
+        self.setWindowTitle("Intelli Libraria - User Feedback")
         self.pages_stack.setCurrentWidget(self.user_feedback_page)

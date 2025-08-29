@@ -283,28 +283,42 @@ class ReportGenerationPage(QWidget):
                 self.table.setItem(row, 2, QTableWidgetItem(book['isbn']))
                 self.table.setItem(row, 3, QTableWidgetItem(str(book['available'])))
                 self.table.setItem(row, 4, QTableWidgetItem(str(book['total'])))
-                
+
                 # Add delete button
                 delete_btn = QPushButton("Delete")
+                delete_btn.setFixedSize(80, 32)  # Fixed size for consistency
                 delete_btn.setStyleSheet("""
                     QPushButton {
-                        background: #d32f2f;
+                        background: #ef4444;
                         color: white;
                         border: none;
-                        border-radius: 4px;
-                        padding: 4px 8px;
-                        font-size: 12px;
+                        border-radius: 6px;
+                        padding: 6px 12px;
+                        font-size: 13px;
+                        font-weight: 500;
+                        min-width: 80px;
                     }
                     QPushButton:hover {
-                        background: #b71c1c;
+                        background: #dc2626;
+                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                    }
+                    QPushButton:pressed {
+                        background: #b91c1c;
                     }
                 """)
                 delete_btn.clicked.connect(lambda checked, r=row: self._on_delete_clicked(r))
-                self.table.setCellWidget(row, 5, delete_btn)
-                
+                # Create a container widget for proper centering
+                container = QWidget()
+                layout = QHBoxLayout(container)
+                layout.addWidget(delete_btn)
+                layout.setAlignment(Qt.AlignCenter)
+                layout.setContentsMargins(0, 0, 0, 0)
+                container.setLayout(layout)
+                self.table.setCellWidget(row, 5, container)
+
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load inventory report: {str(e)}")
-    
+
     def _show_borrowed_books_report(self):
         """Show borrowed books report"""
         # Clear existing data
@@ -344,33 +358,47 @@ class ReportGenerationPage(QWidget):
                     status = "Overdue" if days_left < 0 else "Borrowed"
                     self.table.setItem(row, 4, QTableWidgetItem(str(abs(days_left))))
                     self.table.setItem(row, 5, QTableWidgetItem(status))
-                except:
+                except Exception as e:
                     self.table.setItem(row, 4, QTableWidgetItem("N/A"))
                     self.table.setItem(row, 5, QTableWidgetItem(record['status']))
                 
-                # Add delete button
+                # Add delete button with consistent styling
                 delete_btn = QPushButton("Delete")
+                delete_btn.setFixedSize(80, 32)
                 delete_btn.setStyleSheet("""
                     QPushButton {
-                        background: #d32f2f;
+                        background: #ef4444;
                         color: white;
                         border: none;
-                        border-radius: 4px;
-                        padding: 4px 8px;
-                        font-size: 12px;
+                        border-radius: 6px;
+                        padding: 6px 12px;
+                        font-size: 13px;
+                        font-weight: 500;
+                        min-width: 80px;
                     }
                     QPushButton:hover {
-                        background: #b71c1c;
+                        background: #dc2626;
+                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                    }
+                    QPushButton:pressed {
+                        background: #b91c1c;
                     }
                 """)
                 delete_btn.clicked.connect(lambda checked, r=row: self._on_delete_clicked(r))
-                self.table.setCellWidget(row, 6, delete_btn)
+                
+                # Create a container widget for proper centering
+                container = QWidget()
+                layout = QHBoxLayout(container)
+                layout.addWidget(delete_btn)
+                layout.setAlignment(Qt.AlignCenter)
+                layout.setContentsMargins(0, 0, 0, 0)
+                container.setLayout(layout)
+                self.table.setCellWidget(row, 6, container)
                 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load borrowed books report: {str(e)}")
-    
+
     def _show_report_preview(self, report_type):
-        """Show the preview of the generated report"""
         # Reset button state
         self.generate_btn.setEnabled(True)
         self.generate_btn.setText("Generate Report")
