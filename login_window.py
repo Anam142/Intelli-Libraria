@@ -144,30 +144,20 @@ class LoginWindow(QMainWindow):
         # Set the main window's central widget
         self.setCentralWidget(container)
         
-        # Show the window and position it slightly lower to show the title bar
-        screen = QApplication.primaryScreen().availableGeometry()
-        title_bar_height = 30  # Approximate title bar height
+        # Set initial window size and position
+        self.resize(1200, 800)
+        self.center_window()
         
-        # Position window slightly lower to show title bar
-        self.showNormal()  # First show normal to get proper window frame
-        self.resize(1200, 800)  # Set initial size
-        
-        # Position window with title bar fully visible
-        self.move(0, 0)
-        
-        # Then maximize the window
-        self.showMaximized()
+        # Show the window maximized after a short delay to avoid geometry issues
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(100, self.showMaximized)
         
     def showEvent(self, event):
         """Handle the show event to ensure proper window state and position."""
         super().showEvent(event)
-        
-        # Ensure window is maximized
-        if self.windowState() != Qt.WindowMaximized:
-            self.setWindowState(Qt.WindowMaximized)
-            
-        # Apply a small offset to show the title bar
-        self.setGeometry(0, 1, self.width(), self.height())
+        # Let the window manager handle the geometry when maximized
+        if not event.spontaneous():
+            self.activateWindow()
     
     def update_overlay_geometry(self):
         """Update the overlay geometry when window is resized."""
@@ -204,11 +194,11 @@ class LoginWindow(QMainWindow):
             }
             QLabel#title_label {
                 color: #1f2937;
-                font-size: 18px;
+                font-size: 24px;
                 font-weight: 600;
                 padding: 10px 30px;
                 margin: 0;
-                line-height: 20px;
+                line-height: 24px;
             }
             QLineEdit {
                 padding: 14px 14px;
@@ -474,10 +464,21 @@ class LoginWindow(QMainWindow):
     
     def center_window(self):
         """Centers the main window on the screen."""
-        screen = QApplication.primaryScreen().geometry()
-        size = self.geometry()
-        self.move(int((screen.width() - size.width()) / 2),
-                  int((screen.height() - size.height()) / 2))
+        # Get the screen geometry
+        screen = QApplication.primaryScreen().availableGeometry()
+        
+        # Get the window frame geometry
+        frame_geometry = self.frameGeometry()
+        
+        # Center the window
+        frame_geometry.moveCenter(screen.center())
+        
+        # Ensure window is within screen bounds
+        x = max(0, frame_geometry.left())
+        y = max(0, frame_geometry.top())
+        
+        # Set the window position
+        self.move(x, y)
 
     def open_forgot_password_dialog(self):
         """Open a styled dialog for password reset."""

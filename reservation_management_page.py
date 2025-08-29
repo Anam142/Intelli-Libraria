@@ -314,9 +314,7 @@ class ReservationManagementPage(QWidget):
         actions_layout.setSpacing(2)  # Minimal spacing between buttons
 
         # Edit button
-        edit_btn = QPushButton()
-        edit_btn.setText("Edit")
-        edit_btn.setIcon(QIcon(":/icons/edit.svg"))
+        edit_btn = QPushButton("Edit")
         edit_btn.setToolTip("Edit")
         edit_btn.setCursor(Qt.PointingHandCursor)
         edit_btn.setStyleSheet("""
@@ -342,9 +340,7 @@ class ReservationManagementPage(QWidget):
         edit_btn.clicked.connect(lambda checked, r=row: self.handle_edit_reservation(r))
 
         # Delete button
-        delete_btn = QPushButton()
-        delete_btn.setText("Delete")
-        delete_btn.setIcon(QIcon(":/icons/delete.svg"))
+        delete_btn = QPushButton("Delete")
         delete_btn.setToolTip("Delete")
         delete_btn.setCursor(Qt.PointingHandCursor)
         delete_btn.setStyleSheet("""
