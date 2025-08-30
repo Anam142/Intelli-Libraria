@@ -664,8 +664,29 @@ class NotificationReminderPage(QWidget):
         
         # Buttons row
         button_row = QHBoxLayout()
-        button_row.setContentsMargins(0, 0, 0, 0)
-        button_row.setSpacing(16)
+        button_row.setContentsMargins(0, 16, 0, 0)
+        button_row.setSpacing(12)
+        
+        # Back button
+        back_btn = QPushButton("Back to Reminders")
+        back_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: #4b5563;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                padding: 12px 16px;
+                font-size: 14px;
+                font-weight: 500;
+                font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+            }
+            QPushButton:hover {
+                background: #f3f4f6;
+            }
+        """)
+        back_btn.clicked.connect(self.show_reminders_tab)
+        
+        # Spacer to push buttons to the right
         button_row.addStretch(1)
         
         # Cancel button
@@ -673,7 +694,7 @@ class NotificationReminderPage(QWidget):
         cancel_btn.setStyleSheet("""
             QPushButton {
                 background: #f3f4f6;
-                color: #374151;
+                color: #4b5563;
                 border: none;
                 border-radius: 8px;
                 padding: 12px 24px;
@@ -686,14 +707,6 @@ class NotificationReminderPage(QWidget):
             }
         """)
         cancel_btn.clicked.connect(self.show_reminders_tab)
-        
-        # Set initial values if in edit mode
-        if edit_mode and reminder:
-            title_input.setText(reminder.get('title', ''))
-            notes_input.setPlainText(reminder.get('description', ''))
-            
-            # Set the datetime string directly to the input field
-            datetime_input.setText(reminder.get('datetime', ''))
         
         # Save button
         save_btn = QPushButton("Update" if edit_mode else "Save")
@@ -714,9 +727,19 @@ class NotificationReminderPage(QWidget):
         """)
         save_btn.clicked.connect(self.save_reminder)
         
+        # Add buttons to the row
         button_row.addWidget(cancel_btn)
+        button_row.addWidget(save_btn)
+        
+        # Add button row to main layout
         self.main_layout.addLayout(button_row)
         self.main_layout.addStretch(1)
+        
+        # Set initial values if in edit mode
+        if edit_mode and reminder:
+            title_input.setText(reminder.get('title', ''))
+            notes_input.setPlainText(reminder.get('description', ''))
+            datetime_input.setText(reminder.get('datetime', ''))
 
     def populate_reminders_table(self, table):
         """Populate the reminders table with current reminders data"""

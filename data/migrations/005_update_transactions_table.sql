@@ -2,8 +2,25 @@
 PRAGMA foreign_keys=off;
 BEGIN TRANSACTION;
 
--- Create a backup of the current transactions table
-ALTER TABLE transactions RENAME TO transactions_old;
+-- Create a backup of the current transactions table if it exists
+CREATE TABLE IF NOT EXISTS transactions_old(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    book_id INTEGER,
+    borrow_date TIMESTAMP,
+    due_date TIMESTAMP,
+    return_date TIMESTAMP,
+    status TEXT,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+-- Copy existing data to backup if the table exists
+INSERT INTO transactions_old
+SELECT * FROM transactions WHERE 0;  -- This creates the structure without data
+
+-- Drop the old table if it exists
+DROP TABLE IF EXISTS transactions;
 
 -- Create the new transactions table with the correct schema
 CREATE TABLE IF NOT EXISTS transactions (

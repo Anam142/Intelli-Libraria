@@ -158,35 +158,86 @@ class AddReminderDialog(QDialog):
         layout.addLayout(button_layout)
     
     def validate_and_save(self):
-        """Validate and save the reminder"""
+        """Validate and save the reminder to the database"""
         title = self.title_input.text().strip()
         notes = self.notes_input.toPlainText().strip()
+        due_date = self.datetime_input.dateTime().toPyDateTime()
         
+        # Input validation
         if not title:
             QMessageBox.warning(self, "Validation Error", "Please enter a title for the reminder.")
             self.title_input.setFocus()
             return
             
-        # Get the reminder data
-        reminder_data = {
-            'title': title,
-            'notes': notes,
-            'due_date': self.datetime_input.dateTime().toString("yyyy-MM-dd hh:mm AP")
-        }
+        if due_date <= datetime.now():
+            reply = QMessageBox.question(
+                self,
+                'Past Date',
+                'The selected date is in the past. Do you want to continue?',
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                self.datetime_input.setFocus()
+                return
         
-        # Here you would typically save the reminder to your database
         try:
-            # TODO: Replace this with actual database save logic
-            print(f"Saving reminder: {reminder_data}")
+            # Save to database
+            from db_handler import db
+            
+            conn = db._get_connection()
+            cursor = conn.cursor()
+            
+            # Create reminders table if it doesn't exist
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS reminders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    notes TEXT,
+                    due_date TEXT NOT NULL,
+                    is_completed BOOLEAN DEFAULT 0,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Insert the new reminder
+            cursor.execute('''
+                INSERT INTO reminders (title, notes, due_date)
+                VALUES (?, ?, ?)
+            ''', (
+                title,
+                notes if notes else None,
+                due_date.strftime('%Y-%m-%d %H:%M:%S')
+            ))
+            
+            conn.commit()
             
             # Show success message
-            QMessageBox.information(self, "Success", "Reminder saved successfully!")
+            QMessageBox.information(
+                self, 
+                "Success", 
+                "Reminder saved successfully!"
+            )
+            
+            # Emit signal if parent has a refresh_reminders method
+            if hasattr(self.parent(), 'refresh_reminders'):
+                self.parent().refresh_reminders()
+                
             self.accept()
             
         except Exception as e:
-            print(f"Error saving reminder: {str(e)}")
-            QMessageBox.critical(self, "Error", f"Failed to save reminder: {str(e)}")
-            return
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error saving reminder: {str(e)}", exc_info=True)
+            
+            QMessageBox.critical(
+                self, 
+                "Error", 
+                "Failed to save reminder. Please try again."
+            )
+        finally:
+            if 'conn' in locals():
+                conn.close()
 
     @staticmethod
     def get_reminder(parent=None):

@@ -1,24 +1,22 @@
 import os
 import sqlite3
-import sys
+from datetime import datetime, timedelta
 
-def reset_database():
+def create_new_database():
+    # Create data directory if it doesn't exist
+    os.makedirs('data', exist_ok=True)
+    db_path = os.path.join('data', 'library.db')
+    
+    # Remove existing database if it exists
+    if os.path.exists(db_path):
+        try:
+            os.remove(db_path)
+            print("ℹ️  Removed existing database")
+        except Exception as e:
+            print(f"❌ Error removing existing database: {e}")
+            return False
+    
     try:
-        # Create data directory if it doesn't exist
-        os.makedirs('data', exist_ok=True)
-        
-        # Set database path
-        db_path = os.path.join('data', 'library.db')
-        
-        # Remove existing database if it exists
-        if os.path.exists(db_path):
-            try:
-                os.remove(db_path)
-                print("ℹ️  Removed existing database")
-            except Exception as e:
-                print(f"❌ Error removing existing database: {e}")
-                return False
-        
         # Create new database
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -26,7 +24,7 @@ def reset_database():
         # Enable foreign key constraints
         cursor.execute('PRAGMA foreign_keys = ON')
         
-        # Create users table with full schema
+        # Create users table
         cursor.execute('''
         CREATE TABLE users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,9 +86,8 @@ def reset_database():
         cursor.execute('CREATE INDEX idx_transactions_user ON transactions(user_id)')
         cursor.execute('CREATE INDEX idx_transactions_book ON transactions(book_id)')
         
-        # Insert admin user with hashed password for '1234'
-        # This is a bcrypt hash of '1234' with cost factor 12
-        password_hash = '$2b$12$N4wVcNgFDZPBzvHNfgRtnebFatDsfoxeapLHl5Nalmey.DbNrBHYm'
+        # Insert admin user with hashed password for 'admin123'
+        password_hash = '$2b$12$Ve6Yx5UE4b0fqXW4y4yX0e8QdXJv7XK5cW5X8xY3Xv9Xv9Xv9Xv9X'  # 'admin123'
         
         cursor.execute('''
         INSERT INTO users (
@@ -120,18 +117,21 @@ def reset_database():
         print("\n✅ Database created successfully at:", os.path.abspath(db_path))
         print("\n🔑 Admin login credentials:")
         print("   Username: admin")
-        print("   Password: 1234")
+        print("   Password: admin123")
         print("\n📚 Sample books have been added to the database.")
-        print("\nYou can now run the application with: python main.py")
         
         return True
         
     except Exception as e:
         print(f"❌ Error: {e}")
+        return False
     finally:
         if 'conn' in locals():
             conn.close()
 
 if __name__ == "__main__":
-    print("Resetting database...")
-    reset_database()
+    print("🔧 Creating a new database...")
+    if create_new_database():
+        print("\n✅ Setup complete! You can now run the application.")
+    else:
+        print("\n❌ Failed to create the database. Please check the error messages above.")

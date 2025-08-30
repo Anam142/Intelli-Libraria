@@ -135,6 +135,7 @@ class CreateReservationScreen(QWidget):
         book_id = self.book_search_input.itemData(book_index)
         reservation_date = self.reservation_date_input.date().toString("yyyy-MM-dd")
 
+        # Basic validation
         if not user_id_text or book_id == -1:
             QMessageBox.warning(self, "Input Error", "User ID and a valid book selection are required.")
             return
@@ -145,12 +146,25 @@ class CreateReservationScreen(QWidget):
             QMessageBox.warning(self, "Input Error", "User ID must be a valid number.")
             return
 
-        if database.add_reservation(user_id, book_id, reservation_date):
-            QMessageBox.information(self, "Success", "Reservation created successfully.")
-            self.reservation_added.emit()
-            self.close()
-        else:
-            QMessageBox.warning(self, "Database Error", "Failed to create reservation. Please verify User ID and Book selection.")
+        # Disable UI during operation
+        self.setEnabled(False)
+        
+        try:
+            # This will be fast due to our optimized database function
+            success, message = database.add_reservation(user_id, book_id, reservation_date)
+            
+            if success:
+                QMessageBox.information(self, "Success", message)
+                self.reservation_added.emit()
+                self.close()
+            else:
+                QMessageBox.warning(self, "Reservation Failed", message)
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {str(e)}")
+        finally:
+            # Re-enable UI
+            self.setEnabled(True)
 
 class ReservationManagementPage(QWidget):
     def __init__(self):

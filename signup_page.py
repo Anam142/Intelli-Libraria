@@ -2,7 +2,7 @@ import sys
 import os
 from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QVBoxLayout, 
                             QHBoxLayout, QLineEdit, QPushButton, QMessageBox,
-                            QGraphicsBlurEffect)
+                            QGraphicsBlurEffect, QScrollArea)
 from PyQt5.QtGui import QPixmap, QColor, QPainter, QPainterPath, QFont, QPalette, QBrush
 from PyQt5.QtCore import Qt, QRectF
 
@@ -46,29 +46,32 @@ class SignupForm(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
+
+        # Use CardFrame as the container for the form
+        self.form_container = CardFrame(self)
+        self.form_container.setFixedSize(400, 650)
+
+        # Set up the UI inside the CardFrame
         self.setup_ui()
-    
+
     def setup_ui(self):
-        # Set fixed size for the form
-        self.setFixedSize(400, 650)
-        
-        # Create main layout
-        main_layout = QVBoxLayout(self)
+        # Create main layout for the CardFrame
+        main_layout = QVBoxLayout(self.form_container)
         main_layout.setContentsMargins(40, 40, 40, 30)
         main_layout.setSpacing(16)
-        
+
         # Create a scroll area to ensure all content is accessible
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("QScrollArea { border: none; }")
-        
+
         # Create a container widget for the scroll area
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
         layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
-        
+
         # Title with improved styling
         title = QLabel("Create Account")
         title.setStyleSheet(f"""
@@ -80,7 +83,7 @@ class SignupForm(QWidget):
             letter-spacing: 0.5px;
         """)
         title.setAlignment(Qt.AlignCenter)
-        
+
         # Subtitle with enhanced styling
         subtitle = QLabel("Join us and start your reading journey")
         subtitle.setStyleSheet(f"""
@@ -91,11 +94,11 @@ class SignupForm(QWidget):
             font-family: 'Segoe UI', Arial, sans-serif;
         """)
         subtitle.setAlignment(Qt.AlignCenter)
-        
+
         # Add some spacing
         title.setContentsMargins(0, 0, 0, 0)
         subtitle.setContentsMargins(0, 0, 0, 0)
-        
+
         # Input fields
         fields = [
             ("full_name", "Full Name"),
@@ -104,11 +107,11 @@ class SignupForm(QWidget):
             ("password", "Password (min 8 characters)", True),
             ("phone", "Phone")
         ]
-        
+
         for field in fields:
             name, placeholder = field[0], field[1]
             is_password = len(field) > 2 and field[2]
-            
+
             input_field = QLineEdit()
             input_field.setPlaceholderText(placeholder)
             input_field.setEchoMode(QLineEdit.Password if is_password else QLineEdit.Normal)
@@ -128,7 +131,7 @@ class SignupForm(QWidget):
             """)
             input_field.setMinimumHeight(48)
             setattr(self, f"{name}_input", input_field)
-        
+
         # Sign Up button
         signup_btn = QPushButton("Back to Login")
         signup_btn.setFixedHeight(50)
@@ -145,7 +148,7 @@ class SignupForm(QWidget):
             QPushButton:hover {{ background: #3a5bd9; }}
         """)
         signup_btn.clicked.connect(self.handle_signup)
-        
+
         # Enhanced back to login button
         back_to_login_btn = QPushButton("Already have an account? Sign In")
         back_to_login_btn.setCursor(Qt.PointingHandCursor)
@@ -171,12 +174,12 @@ class SignupForm(QWidget):
             }}
         """)
         back_to_login_btn.clicked.connect(self.handle_login)
-        
+
         # Add widgets to layout with improved spacing
         layout.addSpacing(20)  # Add some top margin
         layout.addWidget(title)
         layout.addWidget(subtitle)
-        
+
         # Add input fields with consistent spacing
         input_widgets = [
             self.full_name_input,
@@ -185,26 +188,26 @@ class SignupForm(QWidget):
             self.password_input,
             self.phone_input
         ]
-        
+
         for widget in input_widgets:
             layout.addWidget(widget)
             layout.addSpacing(8)  # Reduced spacing between fields
-            
+
         # Add signup button with proper spacing
         layout.addSpacing(15)
         layout.addWidget(signup_btn)
-        
+
         # Add the back to login button with some spacing
         layout.addSpacing(20)
-        
+
         # Add the back to login button directly to the layout
         back_to_login_btn.setFixedWidth(200)  # Make the button wider
         layout.addWidget(back_to_login_btn, 0, Qt.AlignCenter)
-        
+
         # Add the scroll area to the main layout
         scroll.setWidget(container)
         main_layout.addWidget(scroll)
-        
+
         # Make sure everything is visible
         self.show()
         scroll.show()
@@ -306,19 +309,9 @@ class SignupPage(QWidget):
         else:
             main_widget.setStyleSheet("background: #4A6CF7;")
 
-        # Create form container
-        form_container = QWidget(main_widget)
-        form_container.setFixedSize(450, 650)
-        form_container.setAttribute(Qt.WA_StyledBackground, True)
-        form_container.setStyleSheet("""
-            QWidget {
-                background-color: rgba(255, 255, 255, 0.95);
-                border-bottom-left-radius: 12px;
-                border-bottom-right-radius: 12px;
-                border-top-left-radius: 12px;
-                border-top-right-radius: 12px;
-            }
-        """)
+        # Create form container using CardFrame
+        form_container = CardFrame(main_widget)
+        form_container.setFixedSize(500, 650)  # Increased width from 450 to 500
 
         # Create and add the signup form
         self.form = SignupForm()
@@ -327,7 +320,7 @@ class SignupPage(QWidget):
         layout = QVBoxLayout(form_container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.form)
-        
+
         # Center the form container
         form_container.move(
             (self.width() - form_container.width()) // 2,

@@ -13,12 +13,19 @@ def create_admin():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_code TEXT UNIQUE NOT NULL,
                 username TEXT UNIQUE NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 full_name TEXT NOT NULL,
-                role TEXT DEFAULT 'member',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                phone TEXT,
+                address TEXT,
+                role TEXT CHECK(role IN ('admin', 'librarian', 'member')) NOT NULL DEFAULT 'member',
+                status TEXT CHECK(status IN ('active', 'inactive', 'suspended')) NOT NULL DEFAULT 'active',
+                max_books INTEGER NOT NULL DEFAULT 5,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP
             )
         ''')
         
@@ -28,9 +35,9 @@ def create_admin():
         
         # Insert or update admin user
         cursor.execute('''
-            INSERT OR REPLACE INTO users (username, email, password_hash, full_name, role)
-            VALUES (?, ?, ?, ?, ?)
-        ''', ('admin', 'admin@intellilibraria.test', password_hash, 'System Administrator', 'admin'))
+            INSERT OR REPLACE INTO users (user_code, username, email, password_hash, full_name, role, status, max_books)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', ('ADMIN001', 'admin', 'admin@intellilibraria.test', password_hash, 'System Administrator', 'admin', 'active', 100))
         
         conn.commit()
         print("✅ Admin user created/updated successfully!")

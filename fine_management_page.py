@@ -1,6 +1,9 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QHBoxLayout, QSizePolicy, QFrame
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, 
+                            QHeaderView, QLineEdit, QHBoxLayout, QSizePolicy, QFrame, QMessageBox)
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QColor
+import database
+from datetime import datetime, timedelta
 
 class FineManagementPage(QWidget):
     def __init__(self):
@@ -20,16 +23,9 @@ class FineManagementPage(QWidget):
         subtitle.setStyleSheet("font-size: 16px; color: #6b7280; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 400; margin-bottom: 24px; margin-top: 0px; background: none; border: none;")
         main_layout.addWidget(subtitle, alignment=Qt.AlignLeft)
 
-        # Store the table data as instance variable for searching
-        self.table_data = [
-            ("#12345", "The Secret Garden", "2024-01-15", "2024-02-15", "10", "$5.00", "Unpaid"),
-            ("#67890", "Pride and Prejudice", "2024-02-01", "2024-03-01", "5", "$2.50", "Paid"),
-            ("#24680", "To Kill a Mockingbird", "2024-03-10", "2024-04-10", "15", "$7.50", "Unpaid"),
-            ("#13579", "The Great Gatsby", "2024-04-05", "2024-05-05", "2", "$1.00", "Paid"),
-            ("#97531", "1984", "2024-05-20", "2024-06-20", "8", "$4.00", "Unpaid"),
-            ("#86420", "The Catcher in the Rye", "2024-06-12", "2024-07-12", "12", "$6.00", "Paid"),
-            ("#75309", "Moby Dick", "2024-07-01", "2024-08-01", "3", "$1.50", "Unpaid"),
-        ]
+        # Initialize empty table data
+        self.table_data = []
+        self.load_fine_records()
         
         # Search bar
         self.search_bar = QLineEdit()
@@ -94,60 +90,142 @@ class FineManagementPage(QWidget):
         self.populate_table(self.table_data)
         main_layout.addWidget(self.table)
 
+    def load_fine_records(self):
+        """Load fine records from the database"""
+        try:
+            # Fetch overdue transactions with fine information
+            conn = database.create_connection()
+            cursor = conn.cursor()
+            
+            # Query to get all transactions with fines (both paid and unpaid)
+            cursor.execute('''
+                SELECT 
+                    '#' || t.id as transaction_id,
+                    b.title as book_title,
+                    t.borrowed_date,
+                    t.due_date,
+                    (julianday('now') - julianday(t.due_date)) as days_overdue,
+                    t.fine_amount,
+                    CASE 
+                        WHEN t.fine_paid = 1 THEN 'Paid'
+                        WHEN t.status = 'returned' AND t.fine_amount > 0 AND t.fine_paid = 0 THEN 'Unpaid (Returned)'
+                        WHEN t.status = 'overdue' AND t.fine_amount > 0 AND t.fine_paid = 0 THEN 'Unpaid (Overdue)'
+                        WHEN t.status = 'lost' THEN 'Unpaid (Lost Book)'
+                        ELSE 'No Fine'
+                    END as payment_status,
+                    u.full_name as user_name
+                FROM transactions t
+                JOIN books b ON t.book_copy_id = b.id
+                JOIN users u ON t.user_id = u.id
+                WHERE (t.fine_amount > 0 OR t.status IN ('overdue', 'lost'))
+                  AND t.borrowed_date IS NOT NULL
+                ORDER BY t.due_date DESC
+            ''')
+            
+            # Store the data for searching and display
+            self.table_data = []
+            for row in cursor.fetchall():
+                transaction_id = row[0]
+                book_title = row[1]
+                borrowed_date = datetime.strptime(row[2], '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+                due_date = datetime.strptime(row[3], '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+                days_overdue = max(0, int(float(row[4]))) if row[4] else 0
+                fine_amount = f"${row[5]:.2f}" if row[5] else "$0.00"
+                payment_status = row[6]
+                
+                self.table_data.append((
+                    transaction_id,
+                    book_title,
+                    borrowed_date,
+                    due_date,
+                    str(days_overdue),
+                    fine_amount,
+                    payment_status
+                ))
+                
+            conn.close()
+            
+            # Update the table with the fetched data
+            self.populate_table(self.table_data)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Database Error", f"Failed to load fine records: {str(e)}")
+            print(f"Error loading fine records: {str(e)}")
+    
     def populate_table(self, data):
         """Populate the table with the provided data"""
-        self.table.setRowCount(len(data))
-        for row, (user_id, book, issue, ret, days, fine, status) in enumerate(data):
-            self.table.setItem(row, 0, QTableWidgetItem(user_id))
-            self.table.setItem(row, 1, QTableWidgetItem(book))
-            self.table.setItem(row, 2, QTableWidgetItem(issue))
-            self.table.setItem(row, 3, QTableWidgetItem(ret))
-            self.table.setItem(row, 4, QTableWidgetItem(days))
-            self.table.setItem(row, 5, QTableWidgetItem(fine))
-            
-            # Payment Status pill
-            pill = QLabel(status)
-            pill.setAlignment(Qt.AlignCenter)
-            pill.setFixedHeight(32)
-            if status == "Paid":
-                pill.setStyleSheet("""
-                    background: #e8f5e9;
-                    color: #2e7d32;
-                    border-radius: 16px;
-                    font-size: 15px;
-                    font-weight: 700;
-                    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-                    padding: 0 24px;
-                """)
-            else:
-                pill.setStyleSheet("""
-                    background: #ffebee;
-                    color: #c62828;
-                    border-radius: 16px;
-                    font-size: 15px;
-                    font-weight: 700;
-                    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-                    padding: 0 24px;
-                """)
-            pill.setText(status)
-            self.table.setCellWidget(row, 6, pill)
+        try:
+            self.table.setRowCount(len(data))
+            for row, (transaction_id, book_title, borrowed_date, due_date, days_overdue, fine_amount, status) in enumerate(data):
+                # Set transaction ID
+                id_item = QTableWidgetItem(transaction_id)
+                id_item.setData(Qt.UserRole, int(transaction_id[1:]))  # Store the actual ID without the #
+                self.table.setItem(row, 0, id_item)
+                
+                # Set book title
+                self.table.setItem(row, 1, QTableWidgetItem(book_title))
+                
+                # Set dates
+                self.table.setItem(row, 2, QTableWidgetItem(borrowed_date))
+                self.table.setItem(row, 3, QTableWidgetItem(due_date))
+                
+                # Set days overdue
+                days_item = QTableWidgetItem(days_overdue)
+                days_item.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(row, 4, days_item)
+                
+                # Set fine amount
+                fine_item = QTableWidgetItem(fine_amount)
+                fine_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.table.setItem(row, 5, fine_item)
+                
+                # Set status with appropriate styling
+                pill = QLabel(status)
+                pill.setAlignment(Qt.AlignCenter)
+                pill.setFixedHeight(32)
+                if status == "Paid":
+                    pill.setStyleSheet("""
+                        background: #e8f5e9;
+                        color: #2e7d32;
+                        border-radius: 16px;
+                        font-size: 15px;
+                        font-weight: 700;
+                        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+                        padding: 0 24px;
+                    """)
+                else:
+                    pill.setStyleSheet("""
+                        background: #ffebee;
+                        color: #c62828;
+                        border-radius: 16px;
+                        font-size: 15px;
+                        font-weight: 700;
+                        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+                        padding: 0 24px;
+                    """)
+                pill.setText(status)
+                self.table.setCellWidget(row, 6, pill)
+                
+        except Exception as e:
+            print(f"Error populating table: {str(e)}")
+            QMessageBox.warning(self, "Error", f"Failed to update the fines table: {str(e)}")
     
-    def filter_table(self):
-        """Filter the table based on search text"""
-        search_text = self.search_bar.text().lower()
-        if not search_text:
+    def filter_table(self, text):
+        """Filter the table based on the search text"""
+        if not text:
             self.populate_table(self.table_data)
             return
             
+        search_text = text.lower()
         filtered_data = []
         for row in self.table_data:
-            # Check if search text exists in any of the columns
-            if (search_text in row[0].lower() or  # User ID
-                search_text in row[1].lower() or  # Book Title
+            # Search in all columns except fine amount (remove $ for better search)
+            row_text = ' '.join([str(cell).lower() for i, cell in enumerate(row) if i != 5])  # Skip fine amount column
+            if (search_text in row[1].lower() or  # Book Title
                 search_text in row[2].lower() or  # Issue Date
                 search_text in row[3].lower() or  # Return Date
                 search_text in row[4].lower() or  # Overdue Days
-                search_text in row[5].lower() or  # Fine Amount
+                search_text in row[5].lower().replace('$', '') or  # Fine Amount (without $)
                 search_text in row[6].lower()):   # Payment Status
                 filtered_data.append(row)
                 

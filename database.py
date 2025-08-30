@@ -586,35 +586,67 @@ def update_book(book_id, title, author, isbn, edition, stock):
     return False
 
 def add_reservation(user_id, book_id, reservation_date):
-    """Add a new reservation to the reservations table."""
-    conn = create_connection()
+    """
+    Add a new reservation to the reservations table.
+    Optimized for speed with minimal database operations.
+    
+    Args:
+        user_id (int): ID of the user making the reservation
+        book_id (int): ID of the book being reserved
+        reservation_date (str): Date of reservation in 'YYYY-MM-DD' format
+        
+    Returns:
+        tuple: (success: bool, message: str) - Success status and message
+    """
+    if not all([user_id, book_id, reservation_date]):
+        return False, "Missing required fields."
+        
+    conn = None
     try:
+        conn = create_connection()
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA busy_timeout = 3000")  # 3 second timeout
         cursor = conn.cursor()
-        # Validate foreign keys exist to avoid silent failures
-        try:
-            cursor.execute("SELECT 1 FROM users WHERE id = ? LIMIT 1", (user_id,))
-            if cursor.fetchone() is None:
-                from PyQt5.QtWidgets import QMessageBox
-                QMessageBox.warning(None, "Database Error", "User ID does not exist. Please enter a valid User ID.")
-                return False
-            cursor.execute("SELECT 1 FROM books WHERE id = ? LIMIT 1", (book_id,))
-            if cursor.fetchone() is None:
-                from PyQt5.QtWidgets import QMessageBox
-                QMessageBox.warning(None, "Database Error", "Book ID does not exist. Please select a valid book.")
-                return False
-        except Exception:
-            # If validation fails for any reason, continue to insert and let DB decide
-            pass
-
-        cursor.execute(
-            "INSERT INTO reservations (user_id, book_id, reservation_date) VALUES (?, ?, ?)",
-            (user_id, book_id, reservation_date)
-        )
-        conn.commit()
-        return True
+        
+        # Single query to check user status and book availability
+        cursor.execute("""
+            SELECT u.status, b.title, b.stock,
+                   (SELECT 1 FROM reservations r 
+                    WHERE r.user_id = ? AND r.book_id = ? 
+                    AND r.status IN ('pending', 'approved') LIMIT 1) as existing_reservation
+            FROM users u, books b
+            WHERE u.id = ? AND b.id = ?
+        """, (user_id, book_id, user_id, book_id))
+        
+        result = cursor.fetchone()
+        if not result:
+            return False, "User or book not found."
+            
+        user_status, book_title, stock, existing_reservation = result
+        
+        # Validate conditions
+        if user_status.lower() != 'active':
+            return False, f"User account is not active."
+        if not stock:
+            return False, f"Book '{book_title}' is out of stock."
+        if existing_reservation:
+            return False, "You already have an active reservation for this book."
+        
+        # Insert reservation and update stock in a single transaction
+        cursor.execute("""
+            BEGIN TRANSACTION;
+            INSERT INTO reservations (user_id, book_id, reservation_date, status)
+            VALUES (?, ?, ?, 'pending');
+            UPDATE books SET stock = stock - 1 WHERE id = ?;
+            COMMIT;
+        """, (user_id, book_id, reservation_date, book_id))
+        
+        return True, f"Reservation for '{book_title}' created successfully!"
+        
+    except sqlite3.IntegrityError as e:
+        return False, "Database integrity error. Please try again."
     except sqlite3.Error as e:
-        print(f"Database error: {e}")
-        return False
+        return False, f"Error: {str(e)}"
     finally:
         if conn:
             conn.close()
@@ -918,22 +950,58 @@ def update_user(user_id, full_name, email, role, status, phone=None, contact=Non
     conn = create_connection()
     try:
         cursor = conn.cursor()
+        
+        # First, verify the user exists
+        cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+        if not cursor.fetchone():
+            QMessageBox.warning(None, "Error", f"User with ID {user_id} does not exist.")
+            return False
+            
+        # Print debug info
+        print(f"Updating user {user_id} with values:")
+        print(f"  Full Name: {full_name}")
+        print(f"  Email: {email}")
+        print(f"  Role: {role}")
+        print(f"  Status: {status}")
+        print(f"  Phone: {phone}")
+        print(f"  Contact: {contact}")
+        print(f"  Address: {address}")
+        
+        # Execute the update
         cursor.execute("""
             UPDATE users 
-            SET full_name = ?, email = ?, phone = ?, role = ?, status = ?, contact = ?, address = ?
+            SET full_name = ?, email = ?, phone = ?, role = ?, status = ?, 
+                contact = ?, address = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """, (full_name, email, phone or contact, role, status, contact, address, user_id))
+        
+        # Verify the update was successful
+        if cursor.rowcount == 0:
+            QMessageBox.warning(None, "Error", "No records were updated. The user may have been deleted.")
+            return False
+            
         conn.commit()
+        print("User updated successfully")
         return True
+        
     except sqlite3.IntegrityError as e:
-        if "UNIQUE constraint failed: users.email" in str(e):
+        error_msg = str(e)
+        print(f"Integrity Error: {error_msg}")
+        
+        if "UNIQUE constraint failed: users.email" in error_msg:
             QMessageBox.warning(None, "Error", "A user with this email already exists.")
+        elif "NOT NULL constraint failed" in error_msg:
+            QMessageBox.warning(None, "Validation Error", "Required fields cannot be empty.")
         else:
-            QMessageBox.warning(None, "Error", "Failed to update user. Please check the data and try again.")
+            QMessageBox.warning(None, "Database Error", 
+                              f"Failed to update user due to a database constraint.\n\nDetails: {error_msg}")
         return False
+        
     except sqlite3.Error as e:
-        print(f"Database error: {e}")
-        QMessageBox.warning(None, "Error", f"Database error: {e}")
+        error_msg = str(e)
+        print(f"Database Error: {error_msg}")
+        QMessageBox.warning(None, "Database Error", 
+                          f"An error occurred while updating the user.\n\nError: {error_msg}")
         return False
     finally:
         if conn:

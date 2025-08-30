@@ -73,65 +73,97 @@ class LoginForm(QMainWindow):
         self.username_input.setFocus()
     
     def handle_login(self):
-        """Handle the login button click event."""
+        """Handle the login button click event with improved error handling."""
         username = self.username_input.text().strip()
         password = self.password_input.text()
         
-        # Validate inputs
-        if not username or not password:
-            QMessageBox.warning(self, "Error", "Please enter both username and password")
-            return
+        # Disable UI during login attempt
+        self.setEnabled(False)
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         
         try:
-            with self.db._get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # First check if the username exists
-                cursor.execute("SELECT id, username, password_hash, status FROM users WHERE username = ?", (username,))
-                user = cursor.fetchone()
-                
-                if not user:
-                    QMessageBox.warning(
-                        self,
-                        "Login Failed",
-                        "Username not found. Please check your username and try again.",
-                        QMessageBox.Ok
+            # Validate inputs
+            if not username or not password:
+                self._show_error("Input Required", "Please enter both username and password.")
+                return
+            
+            try:
+                with self.db._get_connection() as conn:
+                    cursor = conn.cursor()
+                    
+                    # First check if the username exists
+                    cursor.execute(
+                        "SELECT id, username, password_hash, status, full_name, role "
+                        "FROM users WHERE username = ?", 
+                        (username,)
                     )
-                    self.username_input.selectAll()
-                    self.username_input.setFocus()
-                    return
+                    user = cursor.fetchone()
+                    
+                    if not user:
+                        self._show_error(
+                            "Login Failed",
+                            "Username not found. Please check your username and try again.",
+                            focus_widget=self.username_input,
+                            select_text=True
+                        )
+                        return
+                    
+                    # Check if account is active
+                    if user['status'] != 'active':
+                        self._show_error(
+                            "Account Inactive",
+                            "This account is currently inactive.\n\n"
+                            "Please contact the administrator for assistance.",
+                            focus_widget=self.username_input,
+                            clear_password=True
+                        )
+                        return
+                    
+                    # Verify password
+                    from auth_utils import verify_password
+                    if not verify_password(password, user['password_hash']):
+                        self._show_error(
+                            "Login Failed",
+                            "Incorrect password. Please try again.",
+                            focus_widget=self.password_input,
+                            select_text=True
+                        )
+                        return
+                    
+                    # Login successful - redirect to dashboard
+                    self.show_dashboard(user)
+                    
+            except Exception as e:
+                self._show_error(
+                    "Connection Error",
+                    "Unable to connect to the database.\n\n"
+                    "Please check your internet connection and try again.",
+                    is_critical=True
+                )
+                print(f"Database error: {str(e)}")  # Log the actual error for debugging
                 
-                # Check if account is active
-                if user['status'] != 'active':
-                    QMessageBox.warning(
-                        self,
-                        "Account Inactive",
-                        "This account is currently inactive. Please contact the administrator.",
-                        QMessageBox.Ok
-                    )
-                    self.username_input.selectAll()
-                    self.password_input.clear()
-                    self.username_input.setFocus()
-                    return
-                
-                # Verify password
-                from auth_utils import verify_password
-                if not verify_password(password, user['password_hash']):
-                    QMessageBox.warning(
-                        self,
-                        "Login Failed",
-                        "Incorrect password. Please try again.",
-                        QMessageBox.Ok
-                    )
-                    self.password_input.selectAll()
-                    self.password_input.setFocus()
-                    return
-                
-                # Login successful - redirect to dashboard
-                self.show_dashboard(user)
-                
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"An error occurred: {str(e)}")
+        finally:
+            # Re-enable UI
+            self.setEnabled(True)
+            QApplication.restoreOverrideCursor()
+    
+    def _show_error(self, title, message, focus_widget=None, select_text=False, 
+                   clear_password=False, is_critical=False):
+        """Helper method to display error messages consistently."""
+        if is_critical:
+            QMessageBox.critical(self, title, message, QMessageBox.Ok)
+        else:
+            QMessageBox.warning(self, title, message, QMessageBox.Ok)
+        
+        # Set focus to the specified widget
+        if focus_widget:
+            focus_widget.setFocus()
+            if select_text:
+                focus_widget.selectAll()
+        
+        # Clear password field if needed
+        if clear_password:
+            self.password_input.clear()
     
     def show_dashboard(self, user):
         """Show the dashboard window."""

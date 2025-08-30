@@ -150,49 +150,96 @@ class UserDialog(QDialog):
         return user_id
 
     def load_user_data(self):
-        user = database.get_user_by_id(self.user_id)
-        if user:
-            user_id, name, email, role, status, contact, address = user
-            # Set the existing user ID
-            if hasattr(self, 'user_id_field') and self.user_id_field:
-                self.user_id_field.setText(str(user_id))
-            self.inputs["Full Name"].setText(name)
-            self.inputs["Email Address"].setText(email)
-            self.inputs["Contact Number"].setText(contact or "")
-            self.inputs["Address"].setPlainText(address or "")
-            if self.user_id:
-                self.role_input.setCurrentText(role)
-                self.status_input.setCurrentText(status)
+        try:
+            print(f"Loading user data for user_id: {self.user_id}")  # Debug log
+            user = database.get_user_by_id(self.user_id)
+            print(f"Retrieved user data: {user}")  # Debug log
+            
+            if user and len(user) >= 7:  # Ensure we have all expected fields
+                user_id, name, email, role, status, contact, address = user[:7]  # Unpack first 7 fields
+                
+                # Set the existing user ID
+                if hasattr(self, 'user_id_field') and self.user_id_field:
+                    self.user_id_field.setText(str(user_id))
+                
+                # Set the form fields
+                if "Full Name" in self.inputs:
+                    self.inputs["Full Name"].setText(name or "")
+                if "Email Address" in self.inputs:
+                    self.inputs["Email Address"].setText(email or "")
+                if "Contact Number" in self.inputs:
+                    self.inputs["Contact Number"].setText(str(contact) if contact is not None else "")
+                if "Address" in self.inputs:
+                    self.inputs["Address"].setPlainText(str(address) if address is not None else "")
+                
+                # Set role and status if they exist in the form
+                if hasattr(self, 'role_input') and role:
+                    self.role_input.setCurrentText(str(role).capitalize())
+                if hasattr(self, 'status_input') and status:
+                    self.status_input.setCurrentText(str(status).capitalize())
+            else:
+                print(f"Error: Invalid user data format: {user}")
+                QMessageBox.warning(self, "Error", "Invalid user data format. Please try again.")
+                
+        except Exception as e:
+            print(f"Error in load_user_data: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to load user data: {str(e)}")
 
     def save_user(self):
-        name = self.inputs["Full Name"].text().strip()
-        email = self.inputs["Email Address"].text().strip()
-        contact = self.inputs["Contact Number"].text().strip()
-        address = self.inputs["Address"].toPlainText().strip()
-        
-        role = self.role_input.currentText() if self.user_id else 'Member'
-        status = self.status_input.currentText() if self.user_id else 'Active'
+        try:
+            print("Starting save_user method")  # Debug log
+            
+            # Get values from form fields
+            name = self.inputs["Full Name"].text().strip()
+            email = self.inputs["Email Address"].text().strip()
+            contact = self.inputs["Contact Number"].text().strip()
+            address = self.inputs["Address"].toPlainText().strip()
+            
+            # Get role and status (with defaults for new users)
+            role = self.role_input.currentText().strip().capitalize() if hasattr(self, 'role_input') else 'Member'
+            status = self.status_input.currentText().strip().capitalize() if hasattr(self, 'status_input') else 'Active'
+            
+            print(f"Saving user - Name: {name}, Email: {email}, Role: {role}, Status: {status}, Contact: {contact}")  # Debug log
 
-        if not name or not email:
-            QMessageBox.warning(self, "Input Error", "Name and email cannot be empty.")
-            return
+            # Validate required fields
+            if not name or not email:
+                QMessageBox.warning(self, "Input Error", "Name and email cannot be empty.")
+                return
 
-        if self.user_id:
-            if database.update_user(self.user_id, name, email, role, status, contact, address):
-                QMessageBox.information(self, "Success", "User updated successfully.")
-                self.user_changed.emit()
-                self.accept()
+            if self.user_id:
+                print(f"Updating existing user with ID: {self.user_id}")  # Debug log
+                # Update existing user
+                if database.update_user(
+                    user_id=self.user_id,
+                    full_name=name,
+                    email=email,
+                    role=role,
+                    status=status,
+                    phone=contact,  # Using contact as phone since they serve the same purpose
+                    contact=contact,
+                    address=address
+                ):
+                    print("User update successful")  # Debug log
+                    QMessageBox.information(self, "Success", "User updated successfully.")
+                    self.user_changed.emit()
+                    self.accept()
+                else:
+                    print("User update failed")  # Debug log
+                    QMessageBox.warning(self, "Error", "Failed to update user. Please check the details and try again.")
             else:
-                QMessageBox.warning(self, "Error", "Failed to update user.")
-        else:
-            # For new users, a default password is used as the form doesn't include a password field.
-            # The role and status parameters are now correctly ordered
-            if database.add_user(name, email, role, status, contact, address):
-                QMessageBox.information(self, "Success", "User added successfully.")
-                self.user_changed.emit()
-                self.accept()
-            else:
-                QMessageBox.warning(self, "Error", "Failed to add user.")
+                # For new users, a default password is used as the form doesn't include a password field.
+                # The role and status parameters are now correctly ordered
+                if database.add_user(name, email, role, status, contact, address):
+                    print("User added successfully")  # Debug log
+                    QMessageBox.information(self, "Success", "User added successfully.")
+                    self.user_changed.emit()
+                    self.accept()
+                else:
+                    print("Failed to add user")  # Debug log
+                    QMessageBox.warning(self, "Error", "Failed to add user.")
+        except Exception as e:
+            print(f"Error in save_user: {str(e)}")  # Debug log
+            QMessageBox.critical(self, "Error", f"An error occurred: {str(e)}")
 
 
 class UserManagementPage(QWidget):
