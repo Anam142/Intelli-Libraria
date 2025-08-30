@@ -77,7 +77,7 @@ def create_fresh_database():
                 user_id INTEGER NOT NULL,
                 book_copy_id INTEGER NOT NULL,
                 transaction_type TEXT CHECK(transaction_type IN ('borrow', 'return', 'renewal', 'reservation')) NOT NULL,
-                borrow_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                issue_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 due_date TIMESTAMP NOT NULL,
                 return_date TIMESTAMP,
                 fine_amount REAL DEFAULT 0.0,

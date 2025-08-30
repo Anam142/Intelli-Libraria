@@ -25,7 +25,7 @@ DB_PATH = str(DB_DIR / DB_NAME)
 REQUIRED_TABLES = {
     'users': ['id', 'username', 'email', 'password_hash', 'role'],
     'books': ['id', 'title', 'author', 'isbn', 'available_copies', 'total_copies'],
-    'transactions': ['id', 'user_id', 'book_id', 'borrow_date', 'due_date', 
+    'transactions': ['id', 'user_id', 'book_id', 'issue_date', 'due_date', 
                     'return_date', 'status', 'created_at', 'updated_at']
 }
 
@@ -173,7 +173,7 @@ def create_database() -> bool:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     book_id INTEGER NOT NULL,
-                    borrow_date TIMESTAMP NOT NULL,
+                    issue_date TIMESTAMP NOT NULL,
                     due_date TIMESTAMP NOT NULL,
                     return_date TIMESTAMP NULL DEFAULT NULL,
                     status TEXT NOT NULL DEFAULT 'borrowed',

@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS transactions_old(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
     book_id INTEGER,
-    borrow_date TIMESTAMP,
+    issue_date TIMESTAMP,
     due_date TIMESTAMP,
     return_date TIMESTAMP,
     status TEXT,
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     book_id INTEGER NOT NULL,
-    borrow_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    issue_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     due_date TIMESTAMP NOT NULL,
     return_date TIMESTAMP,
     status TEXT CHECK(status IN ('borrowed', 'returned', 'overdue', 'lost')) DEFAULT 'borrowed',
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 
 -- Copy data from old table to new table
-INSERT INTO transactions (id, user_id, book_id, borrow_date, due_date, return_date, status, created_at, updated_at)
+INSERT INTO transactions (id, user_id, book_id, issue_date, due_date, return_date, status, created_at, updated_at)
 SELECT 
     id, 
     user_id, 

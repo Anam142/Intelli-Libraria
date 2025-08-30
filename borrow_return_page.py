@@ -99,23 +99,25 @@ class BorrowBookScreen(QWidget):
         
         # Input validation
         if not user_id or not book_id:
-            QMessageBox.warning(self, "Missing Information", 
-                             "Please enter both User ID and Book ID.")
+            QMessageBox.warning(self, "Input Error", "Please enter both User ID and Book ID")
             return
             
         try:
-            # Initialize the borrow service
-            from services.borrow_service import BorrowService
-            borrow_service = BorrowService()
+            # Convert to integers
+            user_id = int(user_id)
+            book_id = int(book_id)
             
-            # Try to borrow the book
-            success, message = borrow_service.borrow_book(user_id, book_id)
+            # Import the borrow_book function from database
+            from database import borrow_book
             
-            # Always show the message to the user
+            # Call the borrow_book function
+            success, message = borrow_book(user_id, book_id)
+            
+            # Create message box
             msg_box = QMessageBox(self)
             
             if success:
-                # Set success styling and title
+                # Success case
                 msg_box.setWindowTitle("Borrowing Successful")
                 msg_box.setIcon(QMessageBox.Information)
                 
@@ -134,24 +136,26 @@ class BorrowBookScreen(QWidget):
                 else:
                     # Fallback if message format doesn't match
                     message = f"<h3>Success</h3><p>{message}</p>"
+                
+                # Clear input fields on success
+                self.user_id_input.clear()
+                self.book_id_input.clear()
             else:
                 # Error case
                 msg_box.setWindowTitle("Borrowing Failed")
                 msg_box.setIcon(QMessageBox.Warning)
                 
                 # Show specific error messages based on the error type
-                if "User not found or account is inactive" in message:
+                if "User not found" in message:
                     message = "The user ID is invalid or the account is inactive."
                 elif "Book not found" in message:
                     message = "The book ID is invalid or the book does not exist."
-                elif "No available copies of this book" in message:
+                elif "not available" in message.lower():
                     message = "This book is currently not available for borrowing."
-                elif "already borrowed this book" in message:
+                elif "already borrowed" in message.lower():
                     message = "This book has already been borrowed by the same user."
-                elif "Invalid user ID or book ID" in message:
-                    message = "Please enter valid numeric IDs for both user and book."
-                else:
-                    message = f"An error occurred: {message}"
+                elif "maximum borrow limit" in message.lower():
+                    message = "User has reached the maximum borrowing limit (5 books)."
                 
                 message = f"<h3>Could Not Borrow Book</h3><p>{message}</p>"
             
@@ -188,23 +192,19 @@ class BorrowBookScreen(QWidget):
             ok_button = msg_box.addButton("OK", QMessageBox.AcceptRole)
             ok_button.setCursor(Qt.PointingHandCursor)
             
-            # Show the message box and wait for it to be closed
+            # Show the message box
             msg_box.exec_()
-            
-            # Clear the input fields if the operation was successful
-            if success:
-                self.user_id_input.clear()
-                self.book_id_input.clear()
                 
+        except ValueError:
+            QMessageBox.warning(self, "Input Error", 
+                             "Please enter valid numeric IDs for both User and Book")
         except Exception as e:
-            error_msg = str(e)
-            # If the error is about missing attribute, provide a more helpful message
-            if "no attribute 'borrow_book'" in error_msg:
-                error_msg = "Error: The borrowing functionality is not properly configured. Please contact support."
             QMessageBox.critical(self, "Error", 
-                              f"An error occurred while processing the borrowing: {error_msg}")
-            print(f"Error in borrow_book: {error_msg}")
-                
+                              f"An unexpected error occurred: {str(e)}")
+            print(f"Error in borrow_book_action: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
     def borrow_book_action_old(self):
         user_id = self.user_id_input.text().strip()
         book_id = self.book_id_input.text().strip()

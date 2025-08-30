@@ -514,30 +514,46 @@ class DashboardWindow(QMainWindow):
                 table.setRowCount(len(transactions))
                 
                 # Populate the table with transaction data
-                for row, (title, author, user_name, due_date, status) in enumerate(transactions):
-                    # Create table items for each column
-                    title_item = QTableWidgetItem(title or "N/A")
-                    author_item = QTableWidgetItem(author or "N/A")
-                    user_item = QTableWidgetItem(user_name or "N/A")
-                    due_date_item = QTableWidgetItem(str(due_date) if due_date else "N/A")
-                    status_item = QTableWidgetItem(status or "N/A")
+                for row, transaction in enumerate(transactions):
+                    # Handle both tuple and dictionary response formats
+                    if isinstance(transaction, (list, tuple)) and len(transaction) >= 5:
+                        title, author, user_name, due_date, status = transaction[:5]
+                    elif isinstance(transaction, dict):
+                        title = transaction.get('title', transaction.get('book_title', 'N/A'))
+                        author = transaction.get('author', 'N/A')
+                        user_name = transaction.get('full_name', transaction.get('user_name', 'N/A'))
+                        due_date = transaction.get('due_date', 'N/A')
+                        status = transaction.get('status', 'N/A')
+                    else:
+                        continue  # Skip invalid transaction format
                     
-                    # Set text alignment
+                    # Create table items for each column
+                    title_item = QTableWidgetItem(str(title) if title else "N/A")
+                    author_item = QTableWidgetItem(str(author) if author else "N/A")
+                    user_item = QTableWidgetItem(str(user_name) if user_name else "N/A")
+                    due_date_item = QTableWidgetItem(str(due_date) if due_date else "N/A")
+                    status_item = QTableWidgetItem(str(status) if status else "N/A")
+                    
+                    # Set text alignment and font
                     for item in [title_item, author_item, user_item, due_date_item, status_item]:
                         item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                     
-                    # Set base font for status (larger and bold for better visibility)
-                    status_font = QFont('Arial', 11, QFont.Bold)
+                    # Format status with colors
+                    status_text = str(status).lower()
+                    status_font = QFont('Arial', 10, QFont.Bold)
                     status_item.setFont(status_font)
                     
-                    # Color code status
-                    status_text = status.lower() if status else ""
                     if 'overdue' in status_text:
                         status_item.setForeground(QColor('#ef4444'))  # Red for overdue
-                    elif 'issue' in status_text:
-                        status_item.setForeground(QColor('#f59e0b'))  # Yellow for issued
+                        status_item.setText("Overdue")
+                    elif 'borrow' in status_text or 'issue' in status_text:
+                        status_item.setForeground(QColor('#f59e0b'))  # Yellow for borrowed/issued
+                        status_item.setText("Borrowed")
                     elif 'return' in status_text:
                         status_item.setForeground(QColor('#10b981'))  # Green for returned
+                        status_item.setText("Returned")
+                    else:
+                        status_item.setForeground(QColor('#6b7280'))  # Gray for unknown status
                     
                     # Add items to the table
                     table.setItem(row, 0, title_item)
@@ -545,9 +561,15 @@ class DashboardWindow(QMainWindow):
                     table.setItem(row, 2, user_item)
                     table.setItem(row, 3, due_date_item)
                     table.setItem(row, 4, status_item)
+                
+                # Resize columns to fit content
+                table.resizeColumnsToContents()
+                table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)  # Stretch title column
                     
             except Exception as e:
                 print(f"Error loading recent transactions: {e}")
+                import traceback
+                traceback.print_exc()  # Print full traceback for debugging
                 table.setRowCount(1)
                 error_item = QTableWidgetItem(f"Error loading recent activity: {str(e)}")
                 error_item.setTextAlignment(Qt.AlignCenter)

@@ -456,19 +456,29 @@ def get_recent_transactions(limit=8):
     """Fetch recent transactions with book and user details for the dashboard.
     
     Returns:
-        list: List of tuples containing (book_title, author, user_name, due_date, status)
+        list: List of dictionaries containing transaction details with consistent field names
     """
+    conn = None
     try:
         conn = create_connection()
         cursor = conn.cursor()
         
         cursor.execute("""
             SELECT 
-                b.title, 
-                b.author,
-                u.full_name,
+                t.id as transaction_id,
+                b.title as book_title, 
+                b.author as author,
+                u.full_name as user_name,
+                u.email as user_email,
+                t.issue_date,
                 t.due_date,
-                t.status
+                t.return_date,
+                t.status,
+                CASE 
+                    WHEN t.return_date IS NOT NULL THEN 'Returned'
+                    WHEN t.due_date < date('now') THEN 'Overdue'
+                    ELSE t.status
+                END as display_status
             FROM transactions t
             JOIN books b ON t.book_id = b.id
             JOIN users u ON t.user_id = u.id
@@ -476,10 +486,19 @@ def get_recent_transactions(limit=8):
             LIMIT ?
         """, (limit,))
         
-        return cursor.fetchall()
+        # Convert to list of dictionaries with consistent field names
+        columns = [column[0] for column in cursor.description]
+        results = []
+        
+        for row in cursor.fetchall():
+            results.append(dict(zip(columns, row)))
+        
+        return results
         
     except sqlite3.Error as e:
         print(f"Error fetching recent transactions: {e}")
+        import traceback
+        traceback.print_exc()
         return []
     finally:
         if conn:
@@ -554,35 +573,93 @@ def delete_book(book_id):
     return False
 
 def update_book(book_id, title, author, isbn, edition, stock):
-    """Update an existing book in the database.
+    """Update an existing book in the database with enhanced validation and error handling.
     
     Args:
         book_id (int): ID of the book to update
-        title (str): Book title
-        author (str): Book author
-        isbn (str): Book ISBN
-        edition (str): Book edition
-        stock (int): Number of copies in stock
+        title (str): Book title (required, max 255 chars)
+        author (str): Book author (required, max 100 chars)
+        isbn (str): Book ISBN (required, 10 or 13 digits)
+        edition (str): Book edition (optional, max 50 chars)
+        stock (int): Number of copies in stock (required, >= 0)
         
     Returns:
-        bool: True if the update was successful, False otherwise
+        tuple: (success: bool, message: str) - Status and message
     """
-    conn = create_connection()
-    if conn is not None:
-        try:
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE books 
-                SET title = ?, author = ?, isbn = ?, edition = ?, stock = ?
-                WHERE id = ?
-            ''', (title, author, isbn, edition, stock, book_id))
-            conn.commit()
-            return cursor.rowcount > 0
-        except sqlite3.Error as e:
-            print(f"Error updating book: {e}")
-            return False
-        finally:
-            conn.close()
+    # Input validation
+    if not title or not title.strip():
+        return False, "Book title is required"
+    if not author or not author.strip():
+        return False, "Author name is required"
+    if not isbn or not isbn.strip():
+        return False, "ISBN is required"
+    try:
+        stock = int(stock)
+        if stock < 0:
+            return False, "Stock cannot be negative"
+    except ValueError:
+        return False, "Stock must be a number"
+    
+    # Clean inputs
+    title = title.strip()
+    author = author.strip()
+    isbn = ''.join(filter(str.isdigit, isbn))  # Remove any non-digit characters
+    
+    # Validate ISBN length (10 or 13 digits)
+    if len(isbn) not in (10, 13):
+        return False, "ISBN must be 10 or 13 digits"
+    
+    conn = None
+    try:
+        conn = create_connection()
+        if not conn:
+            return False, "Could not connect to database"
+            
+        cursor = conn.cursor()
+        
+        # Check if book exists
+        cursor.execute("SELECT id FROM books WHERE id = ?", (book_id,))
+        if not cursor.fetchone():
+            return False, f"Book with ID {book_id} not found"
+            
+        # Check for duplicate ISBN (excluding current book)
+        cursor.execute("SELECT id FROM books WHERE isbn = ? AND id != ?", (isbn, book_id))
+        if cursor.fetchone():
+            return False, f"A book with ISBN {isbn} already exists"
+        
+        # Update the book
+        cursor.execute('''
+            UPDATE books 
+            SET title = ?, 
+                author = ?, 
+                isbn = ?, 
+                edition = CASE WHEN ? = '' THEN NULL ELSE ? END, 
+                stock = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (title, author, isbn, edition, edition, stock, book_id))
+        
+        if cursor.rowcount == 0:
+            return False, "No changes were made to the book"
+            
+        conn.commit()
+        return True, "Book updated successfully"
+        
+    except sqlite3.IntegrityError as e:
+        error_msg = str(e)
+        if "UNIQUE constraint failed" in error_msg:
+            return False, "A book with this ISBN already exists"
+        return False, f"Database error: {error_msg}"
+        
+    except Exception as e:
+        return False, f"Unexpected error: {str(e)}"
+        
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
     return False
 
 def add_reservation(user_id, book_id, reservation_date):
@@ -932,77 +1009,319 @@ def get_user_by_id(user_id):
             conn.close()
 
 def update_user(user_id, full_name, email, role, status, phone=None, contact=None, address=None):
-    """Update an existing user's details.
+    """Update an existing user's details with enhanced validation and error handling.
     
     Args:
         user_id (int): ID of the user to update
-        full_name (str): User's full name
-        email (str): User's email (must be unique)
+        full_name (str): User's full name (required, max 100 chars)
+        email (str): User's email (required, must be valid format)
         role (str): User role ('Admin' or 'Member')
         status (str): User status ('Active' or 'Inactive')
-        phone (str, optional): User's phone number
-        contact (str, optional): Alternative contact information
-        address (str, optional): User's address
+        phone (str, optional): User's phone number (max 20 chars)
+        contact (str, optional): Alternative contact information (max 100 chars)
+        address (str, optional): User's address (max 255 chars)
         
     Returns:
-        bool: True if user was updated successfully, False otherwise
+        tuple: (success: bool, message: str) - Status and message
     """
-    conn = create_connection()
+    # Input validation
+    if not full_name or not full_name.strip():
+        return False, "Full name is required"
+    if len(full_name) > 100:
+        return False, "Full name cannot exceed 100 characters"
+    
+    if not email or not email.strip():
+        return False, "Email is required"
+    if '@' not in email or '.' not in email.split('@')[-1]:
+        return False, "Please enter a valid email address"
+    
+    if role not in ('Admin', 'Member'):
+        return False, "Invalid role specified"
+    
+    if status not in ('Active', 'Inactive'):
+        return False, "Invalid status specified"
+    
+    # Clean and validate optional fields
+    phone = phone.strip() if phone else ""
+    contact = contact.strip() if contact else ""
+    address = address.strip() if address else ""
+    
+    if len(phone) > 20:
+        return False, "Phone number cannot exceed 20 characters"
+    if len(contact) > 100:
+        return False, "Contact information cannot exceed 100 characters"
+    if len(address) > 255:
+        return False, "Address cannot exceed 255 characters"
+    
+    conn = None
     try:
+        conn = create_connection()
+        if not conn:
+            return False, "Could not connect to database"
+            
         cursor = conn.cursor()
         
-        # First, verify the user exists
+        # Check if user exists
         cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
         if not cursor.fetchone():
-            QMessageBox.warning(None, "Error", f"User with ID {user_id} does not exist.")
-            return False
+            return False, f"User with ID {user_id} not found"
             
-        # Print debug info
-        print(f"Updating user {user_id} with values:")
-        print(f"  Full Name: {full_name}")
-        print(f"  Email: {email}")
-        print(f"  Role: {role}")
-        print(f"  Status: {status}")
-        print(f"  Phone: {phone}")
-        print(f"  Contact: {contact}")
-        print(f"  Address: {address}")
+        # Check for duplicate email (excluding current user)
+        cursor.execute("SELECT id FROM users WHERE email = ? AND id != ?", (email, user_id))
+        if cursor.fetchone():
+            return False, f"A user with email {email} already exists"
         
-        # Execute the update
+        # Update the user
         cursor.execute("""
             UPDATE users 
-            SET full_name = ?, email = ?, phone = ?, role = ?, status = ?, 
-                contact = ?, address = ?, updated_at = CURRENT_TIMESTAMP
+            SET full_name = ?, 
+                email = ?, 
+                phone = CASE WHEN ? = '' THEN NULL ELSE ? END,
+                role = ?, 
+                status = ?, 
+                contact = CASE WHEN ? = '' THEN NULL ELSE ? END, 
+                address = CASE WHEN ? = '' THEN NULL ELSE ? END,
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        """, (full_name, email, phone or contact, role, status, contact, address, user_id))
+        """, (
+            full_name.strip(), 
+            email.strip().lower(),  # Store emails in lowercase
+            phone, phone,  # For CASE WHEN ? = ''
+            role,
+            status,
+            contact, contact,  # For CASE WHEN ? = ''
+            address, address,  # For CASE WHEN ? = ''
+            user_id
+        ))
         
-        # Verify the update was successful
         if cursor.rowcount == 0:
-            QMessageBox.warning(None, "Error", "No records were updated. The user may have been deleted.")
-            return False
+            return False, "No changes were made to the user"
             
         conn.commit()
-        print("User updated successfully")
-        return True
+        return True, "User updated successfully"
         
     except sqlite3.IntegrityError as e:
         error_msg = str(e)
-        print(f"Integrity Error: {error_msg}")
-        
         if "UNIQUE constraint failed: users.email" in error_msg:
-            QMessageBox.warning(None, "Error", "A user with this email already exists.")
-        elif "NOT NULL constraint failed" in error_msg:
-            QMessageBox.warning(None, "Validation Error", "Required fields cannot be empty.")
-        else:
-            QMessageBox.warning(None, "Database Error", 
-                              f"Failed to update user due to a database constraint.\n\nDetails: {error_msg}")
-        return False
+            return False, "A user with this email already exists"
+        return False, f"Database error: {error_msg}"
+        
+    except Exception as e:
+        return False, f"Unexpected error: {str(e)}"
+        
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+def get_overdue_books():
+    """Fetch all overdue books with user and transaction details.
+    
+    Returns:
+        list: List of dictionaries containing overdue book details
+    """
+    try:
+        conn = create_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                t.id as transaction_id,
+                b.title as book_title,
+                b.author as book_author,
+                b.isbn as book_isbn,
+                u.full_name as user_name,
+                u.email as user_email,
+                t.issue_date,
+                t.due_date,
+                t.status,
+                julianday('now') - julianday(t.due_date) as days_overdue
+            FROM transactions t
+            JOIN books b ON t.book_id = b.id
+            JOIN users u ON t.user_id = u.id
+            WHERE t.status = 'borrowed' 
+            AND t.due_date < date('now')
+            ORDER BY t.due_date ASC
+        """)
+        
+        columns = [column[0] for column in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
         
     except sqlite3.Error as e:
+        print(f"Error fetching overdue books: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def get_user_activity(days=30):
+    """Fetch user activity within the specified number of days.
+    
+    Args:
+        days (int): Number of days of activity to retrieve
+        
+    Returns:
+        list: List of dictionaries containing user activity
+    """
+    try:
+        conn = create_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                u.id as user_id,
+                u.full_name as user_name,
+                u.email as user_email,
+                u.role as user_role,
+                COUNT(DISTINCT t.id) as total_borrowed,
+                COUNT(DISTINCT r.id) as total_reservations,
+                COUNT(DISTINCT CASE 
+                    WHEN t.status = 'Returned' THEN t.id 
+                END) as books_returned,
+                COUNT(DISTINCT CASE 
+                    WHEN t.status = 'Issued' AND t.due_date < date('now') 
+                    THEN t.id 
+                END) as overdue_books,
+                MAX(t.issue_date) as last_activity
+            FROM users u
+            LEFT JOIN transactions t ON u.id = t.user_id
+            LEFT JOIN reservations r ON u.id = r.user_id
+            WHERE t.issue_date >= date('now', ? || ' days')
+               OR r.reservation_date >= date('now', ? || ' days')
+            GROUP BY u.id, u.full_name, u.email, u.role
+            ORDER BY last_activity DESC
+        """, (f'-{days}', f'-{days}'))
+        
+        columns = [column[0] for column in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        
+    except sqlite3.Error as e:
+        print(f"Error fetching user activity: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def ensure_tables_exist(cursor):
+    """Ensure all required tables exist with correct schema."""
+    # Create transactions table if it doesn't exist
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        book_id INTEGER NOT NULL,
+        issue_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        due_date TIMESTAMP NOT NULL,
+        return_date TIMESTAMP,
+        status TEXT DEFAULT 'Borrowed',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        FOREIGN KEY (book_id) REFERENCES books (id)
+    )
+    ''')
+    
+    # Create trigger to update timestamps if it doesn't exist
+    cursor.execute('''
+    CREATE TRIGGER IF NOT EXISTS update_transactions_timestamp
+    AFTER UPDATE ON transactions
+    BEGIN
+        UPDATE transactions 
+        SET updated_at = CURRENT_TIMESTAMP 
+        WHERE id = NEW.id;
+    END;
+    ''')
+
+def borrow_book(user_id, book_id, days=14):
+    """
+    Borrow a book for a user with validation and proper error handling.
+    
+    Args:
+        user_id (int): ID of the user borrowing the book
+        book_id (int): ID of the book to be borrowed
+        days (int): Number of days to borrow the book (default: 14)
+        
+    Returns:
+        tuple: (success: bool, message: str) - Status and message
+    """
+    conn = None
+    try:
+        conn = create_connection()
+        cursor = conn.cursor()
+        
+        # Ensure tables exist with correct schema
+        ensure_tables_exist(cursor)
+        
+        # 1. Validate user exists and is active
+        cursor.execute("SELECT id, status FROM users WHERE id = ?", (user_id,))
+        user = cursor.fetchone()
+        if not user:
+            return False, "User not found"
+        if user[1] != 'Active':
+            return False, "User account is not active"
+            
+        # 2. Validate book exists and is available
+        cursor.execute("SELECT id, title, stock FROM books WHERE id = ?", (book_id,))
+        book = cursor.fetchone()
+        if not book:
+            return False, "Book not found"
+        if book[2] <= 0:
+            return False, "Book is not available for borrowing"
+            
+        # 3. Check if user has reached maximum borrow limit
+        cursor.execute("""
+            SELECT COUNT(*) FROM transactions 
+            WHERE user_id = ? AND return_date IS NULL
+        """, (user_id,))
+        borrowed_count = cursor.fetchone()[0]
+        if borrowed_count >= 5:  # Max 5 books per user
+            return False, "Maximum borrow limit reached (5 books)"
+            
+        # 4. Check if book is already borrowed by this user
+        cursor.execute("""
+            SELECT id FROM transactions 
+            WHERE user_id = ? AND book_id = ? AND return_date IS NULL
+        """, (user_id, book_id))
+        if cursor.fetchone():
+            return False, "You have already borrowed this book"
+            
+        # 5. Calculate due date
+        from datetime import datetime, timedelta
+        issue_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        due_date = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        # 6. Create transaction
+        cursor.execute("""
+            INSERT INTO transactions 
+            (user_id, book_id, issue_date, due_date, status)
+            VALUES (?, ?, ?, ?, 'Borrowed')
+        """, (user_id, book_id, issue_date, due_date))
+        
+        # 7. Update book stock and available count
+        cursor.execute("""
+            UPDATE books 
+            SET stock = stock - 1,
+                available = available - 1
+            WHERE id = ? AND stock > 0
+        """, (book_id,))
+        
+        if cursor.rowcount == 0:
+            conn.rollback()
+            return False, "Failed to update book availability"
+            
+        conn.commit()
+        return True, f"Successfully borrowed '{book[1]}'. Due date: {due_date}"
+        
+    except sqlite3.Error as e:
+        if conn:
+            conn.rollback()
         error_msg = str(e)
-        print(f"Database Error: {error_msg}")
-        QMessageBox.warning(None, "Database Error", 
-                          f"An error occurred while updating the user.\n\nError: {error_msg}")
-        return False
+        print(f"Error borrowing book: {error_msg}")
+        if "no such column" in error_msg.lower():
+            return False, "Database schema error. Please contact administrator."
+        return False, f"Database error: {error_msg}"
     finally:
         if conn:
             conn.close()

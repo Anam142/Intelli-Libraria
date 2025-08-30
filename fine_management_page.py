@@ -102,7 +102,7 @@ class FineManagementPage(QWidget):
                 SELECT 
                     '#' || t.id as transaction_id,
                     b.title as book_title,
-                    t.borrowed_date,
+                    t.issue_date,
                     t.due_date,
                     (julianday('now') - julianday(t.due_date)) as days_overdue,
                     t.fine_amount,
@@ -115,10 +115,10 @@ class FineManagementPage(QWidget):
                     END as payment_status,
                     u.full_name as user_name
                 FROM transactions t
-                JOIN books b ON t.book_copy_id = b.id
+                JOIN books b ON t.book_id = b.id
                 JOIN users u ON t.user_id = u.id
                 WHERE (t.fine_amount > 0 OR t.status IN ('overdue', 'lost'))
-                  AND t.borrowed_date IS NOT NULL
+                  AND t.issue_date IS NOT NULL
                 ORDER BY t.due_date DESC
             ''')
             

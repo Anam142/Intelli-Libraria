@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Database configuration
 PROJECT_ROOT = Path(__file__).parent.absolute()
-DB_DIR = PROJECT_ROOT / 'data'
-DB_NAME = 'library.db'
+DB_DIR = PROJECT_ROOT
+DB_NAME = 'intelli_libraria_fresh.db'
 DB_PATH = str(DB_DIR / DB_NAME)
 
 # Ensure the data directory exists
@@ -29,7 +29,7 @@ DB_DIR.mkdir(parents=True, exist_ok=True)
 REQUIRED_TABLES = {
     'users': ['id', 'username', 'email', 'password_hash', 'role'],
     'books': ['id', 'title', 'author', 'isbn', 'available_copies', 'total_copies'],
-    'transactions': ['id', 'user_id', 'book_id', 'borrow_date', 'due_date', 
+    'transactions': ['id', 'user_id', 'book_id', 'issue_date', 'due_date', 
                     'return_date', 'status', 'created_at', 'updated_at']
 }
 
