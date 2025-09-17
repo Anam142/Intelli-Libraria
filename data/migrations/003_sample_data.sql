@@ -10,44 +10,67 @@ INSERT OR IGNORE INTO users (user_code, username, full_name, email, phone, role,
 
 -- Insert sample books
 -- Using INSERT OR IGNORE to skip existing books
-INSERT OR IGNORE INTO books (book_code, title, authors, isbn, quantity_total, quantity_available, branch) VALUES
-('BK-000001', 'The Great Gatsby', 'F. Scott Fitzgerald', '9780743273565', 5, 3, 'Main Branch'),
-('BK-000002', 'To Kill a Mockingbird', 'Harper Lee', '9780061120084', 3, 1, 'Main Branch'),
-('BK-000003', '1984', 'George Orwell', '9780451524935', 4, 4, 'Downtown Branch'),
-('BK-000004', 'Pride and Prejudice', 'Jane Austen', '9780141439518', 2, 0, 'Main Branch'),
-('BK-000005', 'The Hobbit', 'J.R.R. Tolkien', '9780547928227', 3, 2, 'Downtown Branch'),
-('BK-000006', 'The Catcher in the Rye', 'J.D. Salinger', '9780316769488', 2, 2, 'Main Branch'),
-('BK-000007', 'To the Lighthouse', 'Virginia Woolf', '9780156907392', 1, 1, 'Main Branch'),
-('BK-000008', 'Moby Dick', 'Herman Melville', '9781503280786', 3, 3, 'Downtown Branch');
+-- Match current schema: books(id, title, author, isbn, edition, stock, available)
+INSERT OR IGNORE INTO books (title, author, isbn, edition, stock, available) VALUES
+('The Great Gatsby', 'F. Scott Fitzgerald', '9780743273565', NULL, 5, 3),
+('To Kill a Mockingbird', 'Harper Lee', '9780061120084', NULL, 3, 1),
+('1984', 'George Orwell', '9780451524935', NULL, 4, 4),
+('Pride and Prejudice', 'Jane Austen', '9780141439518', NULL, 2, 0),
+('The Hobbit', 'J.R.R. Tolkien', '9780547928227', NULL, 3, 2),
+('The Catcher in the Rye', 'J.D. Salinger', '9780316769488', NULL, 2, 2),
+('To the Lighthouse', 'Virginia Woolf', '9780156907392', NULL, 1, 1),
+('Moby Dick', 'Herman Melville', '9781503280786', NULL, 3, 3);
 
 -- Insert sample transactions
 -- Using INSERT OR IGNORE to skip existing transactions
-INSERT OR IGNORE INTO transactions (book_id, user_id, issue_date, due_date, return_date, status) VALUES
-(1, 2, '2025-07-01', '2025-07-15', '2025-07-14', 'Returned'),
-(2, 2, '2025-08-01', '2025-08-15', NULL, 'Issued'),
-(4, 3, '2025-07-20', '2025-08-03', NULL, 'Overdue'),
-(5, 5, '2025-08-05', '2025-08-19', NULL, 'Issued');
+-- Match current transactions schema and status casing
+-- Use stable lookups to honor foreign keys
+INSERT OR IGNORE INTO transactions (book_id, user_id, issue_date, due_date, return_date, status)
+SELECT b.id, u.id, '2025-07-01', '2025-07-15', '2025-07-14', 'returned'
+FROM books b JOIN users u ON u.username = 'johnsmith' WHERE b.isbn = '9780743273565';
+
+INSERT OR IGNORE INTO transactions (book_id, user_id, issue_date, due_date, return_date, status)
+SELECT b.id, u.id, '2025-08-01', '2025-08-15', NULL, 'borrowed'
+FROM books b JOIN users u ON u.username = 'johnsmith' WHERE b.isbn = '9780061120084';
+
+INSERT OR IGNORE INTO transactions (book_id, user_id, issue_date, due_date, return_date, status)
+SELECT b.id, u.id, '2025-07-20', '2025-08-03', NULL, 'overdue'
+FROM books b JOIN users u ON u.username = 'sarahj' WHERE b.isbn = '9780141439518';
+
+INSERT OR IGNORE INTO transactions (book_id, user_id, issue_date, due_date, return_date, status)
+SELECT b.id, u.id, '2025-08-05', '2025-08-19', NULL, 'borrowed'
+FROM books b JOIN users u ON u.username = 'emmaw' WHERE b.isbn = '9780547928227';
 
 -- Insert sample reservations
 -- Using INSERT OR IGNORE to skip existing reservations
 -- Only insert reservations for books that aren't currently borrowed by the same user
-INSERT OR IGNORE INTO reservations (book_id, user_id, reserved_at, status) 
-SELECT 4, 5, '2025-08-10 10:30:00', 'Active'
-WHERE NOT EXISTS (
-    SELECT 1 FROM transactions 
-    WHERE book_id = 4 AND user_id = 5 AND status = 'Issued'
-)
-UNION ALL
-SELECT 2, 3, '2025-07-25 14:15:00', 'Fulfilled'
-WHERE NOT EXISTS (
-    SELECT 1 FROM transactions 
-    WHERE book_id = 2 AND user_id = 3 AND status = 'Issued'
+-- Match current reservations schema (reservation_date)
+INSERT OR IGNORE INTO reservations (book_id, user_id, reservation_date, status)
+SELECT b.id, u.id, '2025-08-10', 'Active'
+FROM books b JOIN users u ON u.username = 'emmaw'
+WHERE b.isbn = '9780141439518'
+AND NOT EXISTS (
+    SELECT 1 FROM transactions t WHERE t.book_id = b.id AND t.user_id = u.id AND t.return_date IS NULL
+);
+
+INSERT OR IGNORE INTO reservations (book_id, user_id, reservation_date, status)
+SELECT b.id, u.id, '2025-07-25', 'Fulfilled'
+FROM books b JOIN users u ON u.username = 'sarahj'
+WHERE b.isbn = '9780061120084'
+AND NOT EXISTS (
+    SELECT 1 FROM transactions t WHERE t.book_id = b.id AND t.user_id = u.id AND t.return_date IS NULL
 );
 
 -- Insert sample fines
 -- Using INSERT OR IGNORE to skip existing fines
-INSERT OR IGNORE INTO fines (transaction_id, amount, reason, paid) VALUES
-(3, 50.0, 'Overdue book: 2 days late', 0);
+-- Attach fine to the specific overdue transaction inserted above
+INSERT OR IGNORE INTO fines (transaction_id, amount, reason, paid)
+SELECT t.id, 50.0, 'Overdue book: 2 days late', 0
+FROM transactions t
+JOIN books b ON t.book_id = b.id AND b.isbn = '9780141439518'
+JOIN users u ON t.user_id = u.id AND u.username = 'sarahj'
+WHERE t.status = 'overdue'
+LIMIT 1;
 
 -- Insert sample reminders
 -- Using INSERT OR IGNORE to skip existing reminders
@@ -63,5 +86,6 @@ INSERT OR IGNORE INTO feedback (user_id, message, satisfaction_score) VALUES
 (5, 'More copies of popular books would be great. Had to wait a while for the book I wanted.', 4);
 
 -- Update book available quantities based on transactions
-UPDATE books SET quantity_available = quantity_total - 
-    (SELECT COUNT(*) FROM transactions WHERE book_id = books.id AND status = 'Issued');
+-- Recompute available from current stock minus active loans
+UPDATE books SET available = stock - 
+    (SELECT COUNT(*) FROM transactions WHERE book_id = books.id AND return_date IS NULL);

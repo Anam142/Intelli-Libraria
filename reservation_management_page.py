@@ -289,15 +289,30 @@ class ReservationManagementPage(QWidget):
         """Filter reservations based on search text in book title or username"""
         search_text = self.search_bar.text().lower().strip()
 
+        def _normalize(res):
+            # Convert dict rows (from database.get_all_reservations) or tuples into a unified 4-tuple
+            try:
+                if isinstance(res, dict):
+                    return (
+                        res.get('reservation_id') or res.get('id'),
+                        res.get('book_title', ''),
+                        res.get('user_name', ''),
+                        str(res.get('reservation_date', ''))
+                    )
+                # tuple/list fallback: assume order (res_id, book_title, username, res_date, ...)
+                return (res[0], res[1], res[2], res[3])
+            except Exception:
+                return (None, '', '', '')
+
+        normalized = [_normalize(r) for r in (self.all_reservations or [])]
+
         if not search_text:
-            # If search is empty, show all reservations
-            filtered_reservations = self.all_reservations
+            filtered_reservations = normalized
         else:
-            # Filter reservations based on search text
             filtered_reservations = [
-                res for res in self.all_reservations 
-                if (search_text in str(res[1]).lower() or  # Book title
-                     search_text in str(res[2]).lower())   # Username
+                r for r in normalized
+                if (search_text in str(r[1]).lower() or  # Book title
+                    search_text in str(r[2]).lower())     # Username
             ]
 
         # Update the table with filtered results

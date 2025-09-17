@@ -25,7 +25,6 @@ class FineManagementPage(QWidget):
 
         # Initialize empty table data
         self.table_data = []
-        self.load_fine_records()
         
         # Search bar
         self.search_bar = QLineEdit()
@@ -86,9 +85,12 @@ class FineManagementPage(QWidget):
             }
         """)
         
-        # Initial table population
+        # Initial table population (empty), then add to layout
         self.populate_table(self.table_data)
         main_layout.addWidget(self.table)
+
+        # Now that the table exists, load data from the database
+        self.load_fine_records()
 
     def load_fine_records(self):
         """Load fine records from the database"""
@@ -97,50 +99,77 @@ class FineManagementPage(QWidget):
             conn = database.create_connection()
             cursor = conn.cursor()
             
-            # Query to get all transactions with fines (both paid and unpaid)
+            # Query to compute fine information dynamically to work with schemas
             cursor.execute('''
                 SELECT 
-                    '#' || t.id as transaction_id,
-                    b.title as book_title,
+                    t.id as transaction_id,
+                    t.user_id as user_id,
+                    COALESCE(b.title, 'Unknown Book') as book_title,
                     t.issue_date,
                     t.due_date,
-                    (julianday('now') - julianday(t.due_date)) as days_overdue,
-                    t.fine_amount,
                     CASE 
-                        WHEN t.fine_paid = 1 THEN 'Paid'
-                        WHEN t.status = 'returned' AND t.fine_amount > 0 AND t.fine_paid = 0 THEN 'Unpaid (Returned)'
-                        WHEN t.status = 'overdue' AND t.fine_amount > 0 AND t.fine_paid = 0 THEN 'Unpaid (Overdue)'
-                        WHEN t.status = 'lost' THEN 'Unpaid (Lost Book)'
+                        WHEN t.due_date IS NOT NULL 
+                        THEN CAST((julianday('now') - julianday(t.due_date)) AS INTEGER)
+                        ELSE 0
+                    END as days_overdue,
+                    -- Compute fine on the fly: 0.50 per day, never negative
+                    CASE 
+                        WHEN t.due_date IS NOT NULL AND (julianday('now') - julianday(t.due_date)) > 0 
+                            THEN ROUND((julianday('now') - julianday(t.due_date)) * 0.50, 2)
+                        ELSE 0
+                    END as fine_amount,
+                    CASE 
+                        WHEN lower(t.status) = 'returned' AND 
+                             (julianday('now') - julianday(t.due_date)) > 0 
+                            THEN 'Unpaid (Returned)'
+                        WHEN lower(t.status) = 'overdue' AND 
+                             (julianday('now') - julianday(t.due_date)) > 0 
+                            THEN 'Unpaid (Overdue)'
+                        WHEN lower(t.status) = 'lost' THEN 'Unpaid (Lost Book)'
+                        WHEN (julianday('now') - julianday(t.due_date)) <= 0 OR t.due_date IS NULL THEN 'No Fine'
                         ELSE 'No Fine'
                     END as payment_status,
-                    u.full_name as user_name
+                    COALESCE(u.full_name, 'Unknown User') as user_name
                 FROM transactions t
-                JOIN books b ON t.book_id = b.id
-                JOIN users u ON t.user_id = u.id
-                WHERE (t.fine_amount > 0 OR t.status IN ('overdue', 'lost'))
-                  AND t.issue_date IS NOT NULL
-                ORDER BY t.due_date DESC
+                LEFT JOIN books b ON t.book_id = b.id
+                LEFT JOIN users u ON t.user_id = u.id
+                WHERE t.issue_date IS NOT NULL
+                ORDER BY t.due_date DESC NULLS LAST
             ''')
             
             # Store the data for searching and display
             self.table_data = []
             for row in cursor.fetchall():
-                transaction_id = row[0]
-                book_title = row[1]
-                borrowed_date = datetime.strptime(row[2], '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
-                due_date = datetime.strptime(row[3], '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
-                days_overdue = max(0, int(float(row[4]))) if row[4] else 0
-                fine_amount = f"${row[5]:.2f}" if row[5] else "$0.00"
-                payment_status = row[6]
+                transaction_id = int(row[0])
+                user_id_val = str(row[1])
+                book_title = row[2]
+                # Parse dates flexibly: support 'YYYY-MM-DD HH:MM:SS' and 'YYYY-MM-DD'
+                def _fmt_date(value):
+                    if not value:
+                        return ''
+                    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d'):
+                        try:
+                            return datetime.strptime(value, fmt).strftime('%Y-%m-%d')
+                        except Exception:
+                            continue
+                    # Fallback: return as-is to avoid crashing
+                    return str(value)
+                borrowed_date = _fmt_date(row[3])
+                due_date = _fmt_date(row[4])
+                days_overdue = max(0, int(float(row[5]))) if row[5] else 0
+                fine_amount = f"${row[6]:.2f}" if row[6] else "$0.00"
+                payment_status = row[7]
                 
+                # Append user_id for display and keep transaction_id for selection in last slot
                 self.table_data.append((
-                    transaction_id,
+                    user_id_val,
                     book_title,
                     borrowed_date,
                     due_date,
                     str(days_overdue),
                     fine_amount,
-                    payment_status
+                    payment_status,
+                    transaction_id
                 ))
                 
             conn.close()
@@ -156,10 +185,17 @@ class FineManagementPage(QWidget):
         """Populate the table with the provided data"""
         try:
             self.table.setRowCount(len(data))
-            for row, (transaction_id, book_title, borrowed_date, due_date, days_overdue, fine_amount, status) in enumerate(data):
-                # Set transaction ID
-                id_item = QTableWidgetItem(transaction_id)
-                id_item.setData(Qt.UserRole, int(transaction_id[1:]))  # Store the actual ID without the #
+            for row, row_data in enumerate(data):
+                # row_data may include a hidden 8th value (transaction_id)
+                if len(row_data) == 8:
+                    user_id_text, book_title, borrowed_date, due_date, days_overdue, fine_amount, status, trx_id = row_data
+                else:
+                    user_id_text, book_title, borrowed_date, due_date, days_overdue, fine_amount, status = row_data
+                    trx_id = None
+                # Set User ID cell
+                id_item = QTableWidgetItem(str(user_id_text))
+                if trx_id is not None:
+                    id_item.setData(Qt.UserRole, int(trx_id))
                 self.table.setItem(row, 0, id_item)
                 
                 # Set book title

@@ -1,13 +1,14 @@
 -- Indexes for users table
 CREATE INDEX IF NOT EXISTS idx_users_name_email ON users(full_name, email);
 
--- Indexes for books table
-CREATE INDEX IF NOT EXISTS idx_books_title_authors ON books(title, authors);
+-- Fix: the column name is 'author' (singular), not 'authors'
+CREATE INDEX IF NOT EXISTS idx_books_title_author ON books(title, author);
 
 -- Indexes for transactions table
 CREATE INDEX IF NOT EXISTS idx_transactions_user_status ON transactions(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_transactions_book_status ON transactions(book_id, status);
-CREATE INDEX IF NOT EXISTS idx_transactions_due_date ON transactions(due_date) WHERE status = 'Issued';
+-- Normalize to lowercase status values used elsewhere
+CREATE INDEX IF NOT EXISTS idx_transactions_due_date ON transactions(due_date);
 
 -- Indexes for reservations table
 CREATE INDEX IF NOT EXISTS idx_reservations_status ON reservations(status);

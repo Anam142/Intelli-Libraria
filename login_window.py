@@ -414,7 +414,7 @@ class LoginWindow(QMainWindow):
             # Check if user exists with given username or email
             cursor.execute("""
                 SELECT * FROM users 
-                WHERE (username = ? OR email = ?) AND status = 'Active'
+                WHERE (username = ? OR email = ?) AND lower(status) = 'active'
             """, (username, username))
             
             user = cursor.fetchone()

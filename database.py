@@ -20,6 +20,9 @@ def update_database_schema(conn):
     """Update the database schema to match the current application requirements."""
     try:
         cursor = conn.cursor()
+        # Enable foreign key support
+        cursor.execute("PRAGMA foreign_keys = ON")
+        
         # Inspect current users table columns
         cursor.execute("PRAGMA table_info(users)")
         columns = [column[1] for column in cursor.fetchall()]
@@ -40,9 +43,10 @@ def update_database_schema(conn):
         if 'status' not in columns:
             cursor.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'Active'")
         if 'created_at' not in columns:
-            cursor.execute("ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            # SQLite cannot add a column with a non-constant default via ALTER TABLE
+            cursor.execute("ALTER TABLE users ADD COLUMN created_at TIMESTAMP")
         if 'updated_at' not in columns:
-            cursor.execute("ALTER TABLE users ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            cursor.execute("ALTER TABLE users ADD COLUMN updated_at TIMESTAMP")
         conn.commit()
 
         # Backfill data for newly added columns
@@ -61,6 +65,18 @@ def update_database_schema(conn):
                 WHERE user_code IS NULL OR user_code = ''
                 """
             )
+        except Exception:
+            pass
+
+        # Backfill created_at/updated_at if they exist but are NULL
+        try:
+            cursor.execute("PRAGMA table_info(users)")
+            cols_after = {row[1] for row in cursor.fetchall()}
+            if 'created_at' in cols_after:
+                cursor.execute("UPDATE users SET created_at = COALESCE(created_at, CURRENT_TIMESTAMP)")
+            if 'updated_at' in cols_after:
+                cursor.execute("UPDATE users SET updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)")
+            conn.commit()
         except Exception:
             pass
 
@@ -148,10 +164,17 @@ def update_database_schema(conn):
                         user_id INTEGER NOT NULL,
                         book_id INTEGER NOT NULL,
                         reservation_date TEXT NOT NULL,
-                        FOREIGN KEY (user_id) REFERENCES users (id),
-                        FOREIGN KEY (book_id) REFERENCES books (id)
+                        status TEXT DEFAULT 'Active' CHECK(status IN ('Active', 'Fulfilled', 'Cancelled')),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                        FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE
                     )
                 ''')
+                # Create indexes for better performance
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_reservations_user_id ON reservations(user_id)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_reservations_book_id ON reservations(book_id)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_reservations_status ON reservations(status)')
             else:
                 if 'reservation_date' not in res_cols:
                     cursor.execute("ALTER TABLE reservations ADD COLUMN reservation_date TEXT")
@@ -216,7 +239,8 @@ def create_tables():
                 author TEXT NOT NULL,
                 isbn TEXT NOT NULL,
                 edition TEXT,
-                stock INTEGER NOT NULL
+                stock INTEGER NOT NULL,
+                available INTEGER NOT NULL DEFAULT 0
             )
             ''')
             # Create reservations table
@@ -278,11 +302,11 @@ def add_book(title, author, isbn, edition, stock):
                 return False
 
         cursor.execute(
-            "INSERT INTO books (title, author, isbn, edition, stock) VALUES (?, ?, ?, ?, ?)",
-            (title, author, isbn, edition, stock)
+            "INSERT INTO books (title, author, isbn, edition, stock, available) VALUES (?, ?, ?, ?, ?, ?)",
+            (title, author, isbn, edition, stock, stock)
         )
         conn.commit()
-        return True
+        return True, "Reservation created successfully"
     except sqlite3.Error as e:
         print(f"Database error: {e}")
         return False
@@ -545,7 +569,7 @@ def add_book_with_id(book_id, title, author, isbn, edition, stock):
             VALUES (?, ?, ?, ?, ?, ?)
         """, (book_id, title, author, isbn, edition, stock))
         conn.commit()
-        return True
+        return True, "Reservation created successfully"
     except sqlite3.IntegrityError as e:
         print(f"Integrity error: {e}")
         return False
@@ -643,55 +667,38 @@ def update_book(book_id, title, author, isbn, edition, stock):
             return False, "No changes were made to the book"
             
         conn.commit()
-        return True, "Book updated successfully"
+        return True, "Reservation created successfully", "Book updated successfully"
         
     except sqlite3.IntegrityError as e:
         error_msg = str(e)
-        if "UNIQUE constraint failed" in error_msg:
-            return False, "A book with this ISBN already exists"
-        return False, f"Database error: {error_msg}"
-        
-    except Exception as e:
-        return False, f"Unexpected error: {str(e)}"
-        
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
-    return False
-
-def add_reservation(user_id, book_id, reservation_date):
-    """
-    Add a new reservation to the reservations table.
-    Optimized for speed with minimal database operations.
+    
+    """Add a new reservation to the database with proper status handling.
     
     Args:
         user_id (int): ID of the user making the reservation
         book_id (int): ID of the book being reserved
-        reservation_date (str): Date of reservation in 'YYYY-MM-DD' format
+        reservation_date (str, optional): Date in 'YYYY-MM-DD' format. Defaults to current datetime.
         
     Returns:
-        tuple: (success: bool, message: str) - Success status and message
+        tuple: (success: bool, message: str)
     """
-    if not all([user_id, book_id, reservation_date]):
-        return False, "Missing required fields."
-        
     conn = None
     try:
         conn = create_connection()
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA busy_timeout = 3000")  # 3 second timeout
         cursor = conn.cursor()
         
-        # Single query to check user status and book availability
+        # Check if status column exists
+        cursor.execute("PRAGMA table_info(reservations)")
+        columns = [col[1] for col in cursor.fetchall()]
+        has_status = 'status' in columns
+        
+        # Get user, book, and check for existing reservation
         cursor.execute("""
-            SELECT u.status, b.title, b.stock,
-                   (SELECT 1 FROM reservations r 
+            SELECT u.status, b.title, b.quantity_available, 
+                   (SELECT COUNT(*) FROM reservations r 
                     WHERE r.user_id = ? AND r.book_id = ? 
-                    AND r.status IN ('pending', 'approved') LIMIT 1) as existing_reservation
-            FROM users u, books b
+                    AND (r.status = 'Active' OR r.status IS NULL)) as existing_reservation
+            FROM users u, books b 
             WHERE u.id = ? AND b.id = ?
         """, (user_id, book_id, user_id, book_id))
         
@@ -703,33 +710,63 @@ def add_reservation(user_id, book_id, reservation_date):
         
         # Validate conditions
         if user_status.lower() != 'active':
-            return False, f"User account is not active."
-        if not stock:
+            return False, "User account is not active."
+        if not stock or stock <= 0:
             return False, f"Book '{book_title}' is out of stock."
         if existing_reservation:
             return False, "You already have an active reservation for this book."
         
-        # Insert reservation and update stock in a single transaction
-        cursor.execute("""
-            BEGIN TRANSACTION;
-            INSERT INTO reservations (user_id, book_id, reservation_date, status)
-            VALUES (?, ?, ?, 'pending');
-            UPDATE books SET stock = stock - 1 WHERE id = ?;
-            COMMIT;
-        """, (user_id, book_id, reservation_date, book_id))
+        # Prepare the reservation data
+        reserved_at = reservation_date if reservation_date else 'datetime("now")'
         
-        return True, f"Reservation for '{book_title}' created successfully!"
+        # Start transaction
+        cursor.execute("BEGIN TRANSACTION;")
+        
+        try:
+            if has_status:
+                cursor.execute(
+                    """
+                    INSERT INTO reservations (user_id, book_id, reserved_at, status)
+                    VALUES (?, ?, ?, 'Active')
+                    """,
+                    (user_id, book_id, reserved_at)
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO reservations (user_id, book_id, reserved_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    (user_id, book_id, reserved_at)
+                )
+            
+            # Update available quantity
+            cursor.execute(
+                """
+                UPDATE books 
+                SET quantity_available = quantity_available - 1 
+                WHERE id = ? AND quantity_available > 0
+                """,
+                (book_id,)
+            )
+            
+            # Commit the transaction
+            conn.commit()
+            return True, f"Reservation for '{book_title}' created successfully!"
+            
+        except Exception as e:
+            conn.rollback()
+            raise
         
     except sqlite3.IntegrityError as e:
-        return False, "Database integrity error. Please try again."
+        return False, f"Database integrity error: {str(e)}. Please try again."
     except sqlite3.Error as e:
+        return False, f"Database error: {str(e)}"
+    except Exception as e:
         return False, f"Error: {str(e)}"
     finally:
         if conn:
             conn.close()
-
-def get_all_reservations():
-    """Fetch all reservations with user and book details."""
     conn = create_connection()
     try:
         cursor = conn.cursor()
@@ -752,18 +789,169 @@ def get_all_reservations():
 
 def delete_reservation(reservation_id):
     """Delete a reservation from the database by its ID."""
-    conn = create_connection()
+    conn = None
     try:
+        conn = create_connection()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM reservations WHERE id = ?", (reservation_id,))
         conn.commit()
-        return True
+        return cursor.rowcount > 0
     except sqlite3.Error as e:
         print(f"Database error: {e}")
         return False
     finally:
         if conn:
             conn.close()
+
+def add_reservation(book_id, user_id, reservation_date, status="Active"):
+    """
+    Add a new reservation to the database with proper validation.
+    
+    Args:
+        book_id (int/str): ID of the book to reserve
+        user_id (int/str): ID of the user making the reservation
+        reservation_date (str): Date of reservation in 'YYYY-MM-DD' format
+        status (str, optional): Status of the reservation. Defaults to 'Active'.
+                               Must be one of: 'Active', 'Fulfilled', 'Cancelled'
+    
+    Returns:
+        tuple: (success: bool, message: str) - Status and message
+    """
+    conn = None
+    try:
+        # Keep raw inputs
+        raw_user_input = user_id
+        # Convert where possible
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            user_id = None
+        try:
+            book_id = int(book_id)
+        except (ValueError, TypeError):
+            return False, "Error: Book ID must be a valid number"
+            
+        conn = create_connection()
+        cursor = conn.cursor()
+        
+        # Resolve user by id, user_code, username or email
+        resolved_user_id = None
+        if user_id is not None:
+            cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+            r = cursor.fetchone()
+            if r:
+                resolved_user_id = r[0]
+        if resolved_user_id is None:
+            possible_code = None
+            try:
+                if user_id is not None:
+                    possible_code = f"USR-{user_id:06d}"
+            except Exception:
+                possible_code = None
+            cursor.execute(
+                """
+                SELECT id FROM users
+                WHERE user_code = COALESCE(?, user_code)
+                   OR username = ?
+                   OR email = ?
+                LIMIT 1
+                """,
+                (possible_code, str(raw_user_input), str(raw_user_input))
+            )
+            r = cursor.fetchone()
+            if r:
+                resolved_user_id = r[0]
+        if resolved_user_id is None:
+            return False, f"Error: User not found for input '{raw_user_input}'"
+        user_id = resolved_user_id
+            
+        # Check if the book exists and is available
+        cursor.execute("SELECT id, title, stock FROM books WHERE id = ?", (book_id,))
+        book = cursor.fetchone()
+        if not book:
+            return False, f"Error: Book with ID {book_id} not found"
+            
+        if book[2] <= 0:  # Check stock
+            return False, f"Error: '{book[1]}' is currently out of stock"
+            
+        # Insert the reservation
+        cursor.execute("""
+            INSERT INTO reservations (book_id, user_id, reservation_date, status)
+            VALUES (?, ?, ?, ?)
+        """, (book_id, user_id, reservation_date, status))
+        
+        # Decrement the book stock and available when column exists
+        try:
+            cursor.execute(
+                """
+                UPDATE books 
+                SET stock = stock - 1,
+                    available = CASE WHEN (SELECT COUNT(1) FROM pragma_table_info('books') WHERE name='available') > 0 
+                                     THEN available - 1 ELSE stock END
+                WHERE id = ? AND stock > 0
+                """,
+                (book_id,)
+            )
+        except Exception:
+            cursor.execute("UPDATE books SET stock = stock - 1 WHERE id = ? AND stock > 0", (book_id,))
+        
+        conn.commit()
+        return True, f"Successfully reserved '{book[1]}' for user ID {user_id}"
+        
+    except sqlite3.Error as e:
+        error_msg = str(e)
+        if conn:
+            conn.rollback()
+        return False, f"Database error: {error_msg}"
+    finally:
+        if conn:
+            conn.close()
+
+def get_all_reservations():
+    """
+    Fetch all reservations with user and book details.
+    
+    Returns:
+        list: List of dictionaries containing reservation details with user and book information
+    """
+    conn = create_connection()
+    if conn is not None:
+        try:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT 
+                    r.id as reservation_id,
+                    r.user_id,
+                    r.book_id,
+                    r.reservation_date,
+                    r.status,
+                    u.full_name as user_name,
+                    u.email as user_email,
+                    b.title as book_title,
+                    b.author as book_author,
+                    b.isbn as book_isbn
+                FROM 
+                    reservations r
+                JOIN 
+                    users u ON r.user_id = u.id
+                JOIN 
+                    books b ON r.book_id = b.id
+                ORDER BY 
+                    r.reservation_date DESC
+            """)
+            
+            results = cursor.fetchall()
+            # Convert Row objects to dictionaries
+            return [dict(row) for row in results]
+            
+        except sqlite3.Error as e:
+            print(f"Error fetching reservations: {e}")
+            return []
+        finally:
+            conn.close()
+    return []
 
 def get_all_users():
     """Fetch all users as tuples in the order expected by the UI.
@@ -934,7 +1122,7 @@ def add_user(full_name, email, role, status, phone=None, contact=None, address=N
         sql = f"INSERT INTO users ({', '.join(insert_fields)}) VALUES ({placeholders})"
         cursor.execute(sql, tuple(insert_values))
         conn.commit()
-        return True
+        return True, "Reservation created successfully"
     except sqlite3.IntegrityError as e:
         error_text = str(e)
         if "UNIQUE constraint failed: users.email" in error_text:

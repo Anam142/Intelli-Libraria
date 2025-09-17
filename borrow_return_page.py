@@ -441,14 +441,13 @@ class ReturnBookScreen(QWidget):
             with conn:
                 cursor = conn.cursor()
                 
-                # Check if the book is actually borrowed by this user
+                # Check if there is an active (not yet returned) transaction for this user and book
                 cursor.execute("""
                     SELECT t.id, b.title 
                     FROM transactions t
                     JOIN books b ON t.book_id = b.id
                     WHERE t.user_id = ? 
                     AND t.book_id = ? 
-                    AND t.status = 'Issued'
                     AND t.return_date IS NULL
                     LIMIT 1
                 """, (user_id, book_id))
@@ -479,7 +478,7 @@ class ReturnBookScreen(QWidget):
                 cursor.execute("""
                     UPDATE books 
                     SET stock = stock + 1,
-                        updated_at=CURRENT_TIMESTAMP
+                        available = available + 1
                     WHERE id = ?
                 """, (book_id,))
                 

@@ -1,13 +1,16 @@
 import os
 import sqlite3
+from pathlib import Path
 
 def setup_fresh_db():
     try:
+        # Set database path to a temporary name to avoid file lock issues
+        db_path = Path(__file__).parent / 'intelli_libraria_new.db'
+        
         # Remove existing database if it exists
-        from data.database import DB_PATH as db_path
-        if os.path.exists(db_path):
+        if db_path.exists():
             os.remove(db_path)
-            print("Removed existing database")
+            print(f"Removed existing database at {db_path}")
         
         # Create new database
         conn = sqlite3.connect(db_path)
@@ -56,6 +59,27 @@ def setup_fresh_db():
             'admin',
             'Active'
         ))
+        
+        # Create borrow table with proper foreign key constraints
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS borrow (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                book_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                borrow_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                due_date TIMESTAMP NOT NULL,
+                return_date TIMESTAMP,
+                status TEXT CHECK(status IN ('Borrowed', 'Returned', 'Overdue')) DEFAULT 'Borrowed',
+                fine_amount REAL DEFAULT 0.0,
+                FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+        ''')
+        
+        # Create indexes for better query performance
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_borrow_book_id ON borrow(book_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_borrow_user_id ON borrow(user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_borrow_status ON borrow(status)')
         
         conn.commit()
         print("✅ Database created successfully!")

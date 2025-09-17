@@ -1,54 +1,73 @@
 import sqlite3
+import os
 
 def fix_books_table():
-    db_path = 'intelli_libraria_fresh.db'
+    """Fix the books table by properly setting available column values."""
+    db_path = 'intelli_libraria.db'
+    
+    if not os.path.exists(db_path):
+        print(f"Error: Database file '{db_path}' not found!")
+        return False
     
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        print("=== Fixing Books Table ===\n")
+        print("=== Fixing Books Table ===")
         
-        # Check if stock column exists
-        cursor.execute("PRAGMA table_info(books);")
-        columns = [col[1] for col in cursor.fetchall()]
+        # Check current books table structure
+        print("\n1. Checking current books table structure...")
+        cursor.execute("PRAGMA table_info(books)")
+        columns = cursor.fetchall()
+        print("Columns in books table:")
+        for col in columns:
+            print(f"  {col[1]} ({col[2]}) - Default: {col[4]}")
         
-        if 'stock' not in columns:
-            print("Adding 'stock' column to books table...")
-            cursor.execute("ALTER TABLE books ADD COLUMN stock INTEGER DEFAULT 0;")
-            
-            # If there's an available_quantity column, copy its values to stock
-            if 'available_quantity' in columns:
-                print("Copying values from available_quantity to stock...")
-                cursor.execute("UPDATE books SET stock = available_quantity;")
-            else:
-                # Set a default stock value for existing books
-                cursor.execute("UPDATE books SET stock = 1 WHERE stock IS NULL OR stock = 0;")
-            
-            conn.commit()
-            print("Successfully added and initialized 'stock' column.")
-        else:
-            print("'stock' column already exists in books table.")
-        
-        # Verify the changes
-        cursor.execute("SELECT id, title, stock FROM books LIMIT 5;")
+        # Check if available column exists and has correct values
+        print("\n2. Checking available column values...")
+        cursor.execute("SELECT id, title, stock, available FROM books LIMIT 5")
         books = cursor.fetchall()
+        print("Current books data:")
+        for book in books:
+            print(f"  ID: {book[0]}, Title: {book[1]}, Stock: {book[2]}, Available: {book[3]}")
         
-        if books:
-            print("\nSample book records:")
-            for book in books:
-                print(f"ID: {book[0]}, Title: {book[1]}, Stock: {book[2]}")
+        # Update available column with stock values
+        print("\n3. Updating available column with stock values...")
+        cursor.execute("UPDATE books SET available = stock")
+        updated_rows = cursor.rowcount
+        print(f"Updated {updated_rows} books.")
         
-        print("\n✅ Books table is ready for borrowing.")
+        # Verify the update
+        print("\n4. Verifying the update...")
+        cursor.execute("SELECT id, title, stock, available FROM books LIMIT 5")
+        books = cursor.fetchall()
+        print("Books after update:")
+        for book in books:
+            print(f"  ID: {book[0]}, Title: {book[1]}, Stock: {book[2]}, Available: {book[3]}")
         
-    except Exception as e:
-        print(f"Error fixing books table: {e}")
-        if 'conn' in locals():
+        # Check for any triggers that might cause issues
+        print("\n5. Checking for triggers on books table...")
+        cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND tbl_name='books'")
+        triggers = cursor.fetchall()
+        if triggers:
+            print("Triggers found:")
+            for trigger in triggers:
+                print(f"  {trigger[0]}: {trigger[1]}")
+        else:
+            print("No triggers found on books table.")
+        
+        conn.commit()
+        print("\n✅ Books table fixed successfully!")
+        return True
+        
+    except sqlite3.Error as e:
+        print(f"❌ Database error: {e}")
+        if conn:
             conn.rollback()
+        return False
     finally:
-        if 'conn' in locals():
+        if conn:
             conn.close()
 
 if __name__ == "__main__":
     fix_books_table()
-    input("\nPress Enter to exit...")
